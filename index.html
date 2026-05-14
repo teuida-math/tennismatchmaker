@@ -163,7 +163,8 @@
     text-align: center;
     user-select: none;
   }
-  .member-chip:hover { transform: translateY(-1px); border-color: var(--accent-strong); box-shadow: var(--shadow-sm); }
+  .member-chip:hover { border-color: var(--accent-strong); }
+  @media (hover: hover) { .member-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); } }
   .member-chip.selected { border-color: var(--accent-strong); background: linear-gradient(180deg,#FCFFF3,var(--accent-bg)); box-shadow: inset 0 0 0 1px rgba(15,107,69,.08); }
   .member-chip.selected::after {
     content: '✓';
@@ -395,6 +396,11 @@
     box-shadow: 0 8px 18px rgba(254,229,0,.35);
   }
   .btn-share-kakao:hover { background: #F5DC00; }
+  .btn-share-img {
+    background: var(--green);
+    color: #fff;
+  }
+  .btn-share-img:hover { background: var(--green-2); }
 
   .toast {
     position: fixed;
@@ -431,6 +437,7 @@
     .tab-btn { padding-left: 12px; padding-right: 12px; }
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 <div class="toast" id="toast"></div>
@@ -442,7 +449,7 @@
     </div>
   </div>
   <nav class="tabs">
-    <button class="tab-btn active" onclick="switchTab('today',this)">참가자</button>
+    <button class="tab-btn active" onclick="switchTab('today',this)">오늘 참가자</button>
     <button class="tab-btn" onclick="switchTab('basic',this)">랜덤</button>
     <button class="tab-btn" onclick="switchTab('fixed',this)">고정 페어</button>
     <button class="tab-btn" onclick="switchTab('ab',this)">A/B 팀전</button>
@@ -511,8 +518,9 @@
       </div>
       <div class="section" style="padding:0;overflow:hidden"><div class="game-list" id="basicGames"></div></div>
       <div class="share-bar">
-        <button class="btn-share btn-share-copy" onclick="shareText('basic')">📋 텍스트 복사</button>
-        <button class="btn-share btn-share-kakao" onclick="shareKakao('basic')">💬 카카오톡 공유</button>
+        <button class="btn-share btn-share-copy" onclick="shareText('basic')">텍스트 복사</button>
+        <button class="btn-share btn-share-img" onclick="shareImage('basicGames','basic')">이미지 저장</button>
+        <button class="btn-share btn-share-kakao" onclick="shareImageKakao('basicGames','basic')">카카오 공유</button>
       </div>
     </div>
   </div>
@@ -541,8 +549,9 @@
       <div class="schedule-top"><span class="schedule-label">고정팀 대진표</span><span class="count-badge" id="fixedBadge"></span></div>
       <div class="section" style="padding:0;overflow:hidden"><div class="game-list" id="fixedGames"></div></div>
       <div class="share-bar">
-        <button class="btn-share btn-share-copy" onclick="shareText('fixed')">📋 텍스트 복사</button>
-        <button class="btn-share btn-share-kakao" onclick="shareKakao('fixed')">💬 카카오톡 공유</button>
+        <button class="btn-share btn-share-copy" onclick="shareText('fixed')">텍스트 복사</button>
+        <button class="btn-share btn-share-img" onclick="shareImage('fixedGames','fixed')">이미지 저장</button>
+        <button class="btn-share btn-share-kakao" onclick="shareImageKakao('fixedGames','fixed')">카카오 공유</button>
       </div>
     </div>
   </div>
@@ -587,8 +596,9 @@
       </div>
       <div class="section" style="padding:0;overflow:hidden"><div class="game-list" id="abGames"></div></div>
       <div class="share-bar">
-        <button class="btn-share btn-share-copy" onclick="shareText('ab')">📋 텍스트 복사</button>
-        <button class="btn-share btn-share-kakao" onclick="shareKakao('ab')">💬 카카오톡 공유</button>
+        <button class="btn-share btn-share-copy" onclick="shareText('ab')">텍스트 복사</button>
+        <button class="btn-share btn-share-img" onclick="shareImage('abGames','ab')">이미지 저장</button>
+        <button class="btn-share btn-share-kakao" onclick="shareImageKakao('abGames','ab')">카카오 공유</button>
       </div>
     </div>
   </div>
@@ -1112,6 +1122,102 @@ function buildShareText(mode) {
 
   lines.push('', '— Tennis Bracket으로 생성 —');
   return lines.join('\n');
+}
+
+// ── 대진표 이미지 캡처 ───────────────────────────────────────
+async function captureGameImage(containerId, mode) {
+  const labelMap = { basic: '랜덤 대진표', fixed: '고정 페어 대진표', ab: 'A/B 팀전' };
+  const today = new Date();
+  const dateStr = `${today.getMonth()+1}/${today.getDate()}(${['일','월','화','수','목','금','토'][today.getDay()]})`;
+
+  // 캡처용 임시 컨테이너 생성
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `
+    position:fixed; left:-9999px; top:0;
+    width:360px; background:#fff;
+    border-radius:16px; overflow:hidden;
+    font-family:'Noto Sans KR','Inter',sans-serif;
+    box-shadow: 0 4px 24px rgba(0,0,0,.12);
+  `;
+
+  // 헤더
+  const header = document.createElement('div');
+  header.style.cssText = 'background:#0A4A30; padding:16px 20px 14px;';
+  header.innerHTML = `
+    <div style="font-size:10px;font-weight:700;letter-spacing:.18em;color:#C8F43D;text-transform:uppercase;margin-bottom:4px">TENNIS MATCH MAKER</div>
+    <div style="font-size:15px;font-weight:800;color:#fff">${labelMap[mode]}</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">${dateStr}</div>
+  `;
+  wrap.appendChild(header);
+
+  // 게임 목록 복사
+  const src = document.getElementById(containerId);
+  const gameList = src.cloneNode(true);
+  // score input → 텍스트로 변환
+  gameList.querySelectorAll('input.score-input').forEach(inp => {
+    const span = document.createElement('span');
+    span.textContent = inp.value || '0';
+    span.style.cssText = 'font-weight:800;font-size:.84rem;';
+    inp.replaceWith(span);
+  });
+  gameList.style.cssText = 'background:#fff;';
+  wrap.appendChild(gameList);
+
+  // 푸터
+  const footer = document.createElement('div');
+  footer.style.cssText = 'padding:10px 20px;background:#F2F4EF;text-align:right;';
+  footer.innerHTML = '<span style="font-size:10px;color:#9CA79A;font-weight:600">Tennis Match Maker</span>';
+  wrap.appendChild(footer);
+
+  document.body.appendChild(wrap);
+
+  const canvas = await html2canvas(wrap, {
+    scale: 2.5,
+    useCORS: true,
+    backgroundColor: '#fff',
+    logging: false
+  });
+
+  document.body.removeChild(wrap);
+  return canvas;
+}
+
+async function shareImage(containerId, mode) {
+  showToast('이미지 생성 중...');
+  try {
+    const canvas = await captureGameImage(containerId, mode);
+    const link = document.createElement('a');
+    const today = new Date();
+    link.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('이미지 저장 완료!');
+  } catch(e) {
+    showToast('이미지 생성 실패');
+  }
+}
+
+async function shareImageKakao(containerId, mode) {
+  showToast('이미지 생성 중...');
+  try {
+    const canvas = await captureGameImage(containerId, mode);
+    canvas.toBlob(async (blob) => {
+      const file = new File([blob], 'bracket.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+      } else {
+        // fallback: 이미지 다운로드
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'bracket.png';
+        a.click();
+        showToast('이미지 저장됐어요! 카톡에서 직접 전송하세요');
+      }
+    }, 'image/png');
+  } catch(e) {
+    showToast('공유 실패');
+  }
 }
 
 // ── 클립보드 복사 ─────────────────────────────────────────
