@@ -1171,12 +1171,23 @@ async function captureGameImage(containerId, mode) {
 
   document.body.appendChild(wrap);
 
-  const canvas = await html2canvas(wrap, {
-    scale: 2.5,
-    useCORS: true,
-    backgroundColor: '#fff',
-    logging: false
-  });
+  const gameCount = gameList.querySelectorAll('.game-card').length;
+
+const captureHeight =
+  92 +
+  (gameCount * 96) +
+  48;
+
+const canvas = await html2canvas(wrap, {
+  scale: 2.5,
+  useCORS: true,
+  backgroundColor: '#fff',
+  logging: false,
+  width: 360,
+  height: captureHeight,
+  windowWidth: 360,
+  windowHeight: captureHeight
+});
 
   document.body.removeChild(wrap);
   return canvas;
