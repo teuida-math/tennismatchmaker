@@ -1302,6 +1302,51 @@ function fallbackCopy(text) {
   document.body.removeChild(ta);
 }
 
+async function shareImage(containerId, mode) {
+  showToast('이미지 생성 중...');
+  try {
+    const canvas = await captureGameImage(containerId, mode);
+    const link = document.createElement('a');
+    const today = new Date();
+    link.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('이미지 저장 완료!');
+  } catch(e) {
+    console.error('shareImage error:', e);
+    showToast('이미지 생성 실패');
+  }
+}
+
+async function shareImageKakao(containerId, mode) {
+  showToast('이미지 생성 중...');
+  try {
+    const canvas = await captureGameImage(containerId, mode);
+    const dataUrl = canvas.toDataURL('image/png');
+
+    if (navigator.share) {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], '대진표.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        return;
+      }
+    }
+
+    // fallback: 이미지 저장
+    const link = document.createElement('a');
+    const today = new Date();
+    link.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
+    link.href = dataUrl;
+    link.click();
+    showToast('이미지 저장됐어요! 카톡에서 전송하세요');
+  } catch(e) {
+    console.error('shareImageKakao error:', e);
+    showToast('공유 실패 — 이미지 저장을 눌러주세요');
+  }
+}
+
 // ── 카카오톡 공유 ─────────────────────────────────────────
 function shareKakao(mode) {
   const text = buildShareText(mode);
