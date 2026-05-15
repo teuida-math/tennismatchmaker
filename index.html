@@ -437,7 +437,6 @@
     .tab-btn { padding-left: 12px; padding-right: 12px; }
   }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 <div class="toast" id="toast"></div>
@@ -1124,128 +1123,156 @@ function buildShareText(mode) {
   return lines.join('\n');
 }
 
-// ── 대진표 이미지 캡처 ───────────────────────────────────────
+// ── 대진표 이미지 캡처 (Canvas 직접 드로잉) ─────────────────
 async function captureGameImage(containerId, mode) {
   const labelMap = { basic: '랜덤 대진표', fixed: '고정 페어 대진표', ab: 'A/B 팀전' };
   const today = new Date();
   const dateStr = `${today.getMonth()+1}/${today.getDate()}(${['일','월','화','수','목','금','토'][today.getDay()]})`;
+  const arr = mode === 'basic' ? basicGames : mode === 'fixed' ? fixedGames : abGames;
 
-  // 캡처용 임시 컨테이너 생성
-  const wrap = document.createElement('div');
-  wrap.setAttribute('data-capture-wrap', '1');
-  wrap.style.cssText = `
-    position:fixed; left:-9999px; top:0;
-    width:360px; background:#fff;
-    border-radius:16px; overflow:hidden;
-    font-family:'Noto Sans KR','Inter',sans-serif;
-    box-shadow: 0 4px 24px rgba(0,0,0,.12);
-  `;
+  const W = 720; // 2x for retina
+  const PADDING = 40;
+  const HEADER_H = 130;
+  const GAME_H = 100;
+  const FOOTER_H = 60;
+  const totalH = HEADER_H + arr.length * GAME_H + FOOTER_H;
 
-  // 헤더
-  const header = document.createElement('div');
-  header.style.cssText = 'background:#0A4A30; padding:16px 20px 14px;';
-  header.innerHTML = `
-    <div style="font-size:10px;font-weight:700;letter-spacing:.18em;color:#C8F43D;text-transform:uppercase;margin-bottom:4px">TENNIS MATCH MAKER</div>
-    <div style="font-size:15px;font-weight:800;color:#fff">${labelMap[mode]}</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">${dateStr}</div>
-  `;
-  wrap.appendChild(header);
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = totalH;
+  const ctx = canvas.getContext('2d');
 
-  // 게임 목록 복사
-  const src = document.getElementById(containerId);
-  const gameList = src.cloneNode(true);
-  // score input → 텍스트로 변환
-  gameList.querySelectorAll('input.score-input').forEach(inp => {
-    const span = document.createElement('span');
-    span.textContent = inp.value || '0';
-    span.style.cssText = 'font-weight:800;font-size:.84rem;';
-    inp.replaceWith(span);
+  // 배경
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, totalH);
+
+  // 헤더 배경
+  ctx.fillStyle = '#0A4A30';
+  ctx.fillRect(0, 0, W, HEADER_H);
+
+  // 헤더 텍스트
+  ctx.fillStyle = '#C8F43D';
+  ctx.font = '600 20px Inter, sans-serif';
+  ctx.letterSpacing = '3px';
+  ctx.fillText('TENNIS MATCH MAKER', PADDING, 44);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 34px "Noto Sans KR", sans-serif';
+  ctx.letterSpacing = '0px';
+  ctx.fillText(labelMap[mode], PADDING, 86);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = '500 22px "Noto Sans KR", sans-serif';
+  ctx.fillText(dateStr, PADDING, 114);
+
+  // 게임 목록
+  arr.forEach((g, i) => {
+    const y = HEADER_H + i * GAME_H;
+
+    // 구분선
+    ctx.fillStyle = '#E1E8DB';
+    ctx.fillRect(0, y, W, 1);
+
+    // done 배경
+    if (g.done) {
+      ctx.fillStyle = '#F4FFF8';
+      ctx.fillRect(0, y + 1, W, GAME_H - 1);
+    }
+
+    // 게임 번호 원
+    const cx = PADDING - 4, cy = y + GAME_H / 2;
+    ctx.fillStyle = g.done ? '#C8F43D' : '#F0F2F0';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = g.done ? '#0A4A30' : '#9CA79A';
+    ctx.font = 'bold 20px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(i + 1, cx, cy + 7);
+    ctx.textAlign = 'left';
+
+    // 팀A 이름
+    const nameX = PADDING + 28;
+    ctx.fillStyle = '#172018';
+    ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
+    ctx.fillText(g.t1[0], nameX, y + 34);
+    ctx.fillText(g.t1[1], nameX, y + 66);
+    ctx.fillStyle = '#9CA79A';
+    ctx.font = '500 18px "Noto Sans KR", sans-serif';
+    ctx.fillText('팀 A', nameX, y + 90);
+
+    // VS + 스코어
+    const midX = W / 2;
+    ctx.fillStyle = '#9CA79A';
+    ctx.font = 'bold 18px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('VS', midX, y + 34);
+
+    // 스코어 박스
+    const s1 = g.s1 !== '' ? g.s1 : '0';
+    const s2 = g.s2 !== '' ? g.s2 : '0';
+    const scoreY = y + 50;
+
+    ctx.fillStyle = '#F3F6F0';
+    roundRect(ctx, midX - 76, scoreY - 22, 58, 36, 8);
+    ctx.fill();
+    ctx.fillStyle = '#172018';
+    ctx.font = 'bold 26px Inter, sans-serif';
+    ctx.fillText(s1, midX - 47, scoreY + 8);
+
+    ctx.fillStyle = '#9CA79A';
+    ctx.font = 'bold 26px Inter, sans-serif';
+    ctx.fillText(':', midX, scoreY + 8);
+
+    ctx.fillStyle = '#F3F6F0';
+    roundRect(ctx, midX + 18, scoreY - 22, 58, 36, 8);
+    ctx.fill();
+    ctx.fillStyle = '#172018';
+    ctx.font = 'bold 26px Inter, sans-serif';
+    ctx.fillText(s2, midX + 47, scoreY + 8);
+
+    ctx.textAlign = 'left';
+
+    // 팀B 이름
+    ctx.fillStyle = '#172018';
+    ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(g.t2[0], W - PADDING, y + 34);
+    ctx.fillText(g.t2[1], W - PADDING, y + 66);
+    ctx.fillStyle = '#9CA79A';
+    ctx.font = '500 18px "Noto Sans KR", sans-serif';
+    ctx.fillText('팀 B', W - PADDING, y + 90);
+    ctx.textAlign = 'left';
   });
-  gameList.style.cssText = 'background:#fff; display:flex; flex-direction:column;';
-  // 게임카드 인라인 스타일 명시
-  gameList.querySelectorAll('.game-card').forEach((card, i) => {
-    card.style.cssText = `
-      display:grid;
-      grid-template-columns:30px 1fr auto 1fr;
-      align-items:center;
-      gap:10px;
-      padding:15px 18px;
-      border-bottom:1px solid #E1E8DB;
-      background:${card.classList.contains('done') ? '#F4FFF8' : '#fff'};
-    `;
-  });
-  wrap.appendChild(gameList);
+
+  // 마지막 구분선
+  ctx.fillStyle = '#E1E8DB';
+  ctx.fillRect(0, HEADER_H + arr.length * GAME_H, W, 1);
 
   // 푸터
-  const footer = document.createElement('div');
-  footer.style.cssText = 'padding:10px 20px;background:#F2F4EF;text-align:right;';
-  footer.innerHTML = '<span style="font-size:10px;color:#9CA79A;font-weight:600">Tennis Match Maker</span>';
-  wrap.appendChild(footer);
+  ctx.fillStyle = '#F2F4EF';
+  ctx.fillRect(0, HEADER_H + arr.length * GAME_H + 1, W, FOOTER_H - 1);
+  ctx.fillStyle = '#9CA79A';
+  ctx.font = '500 20px Inter, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('Tennis Match Maker', W - PADDING, HEADER_H + arr.length * GAME_H + 38);
+  ctx.textAlign = 'left';
 
-  document.body.appendChild(wrap);
-
-  // 실제 렌더링 높이 측정 (2프레임 대기)
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  const actualHeight = wrap.scrollHeight;
-
-  const canvas = await html2canvas(wrap, {
-    scale: 2.5,
-    useCORS: true,
-    backgroundColor: '#fff',
-    logging: false,
-    width: 360,
-    height: actualHeight,
-    windowWidth: 390,
-    windowHeight: actualHeight + 200,
-    scrollX: 0,
-    scrollY: 0,
-    onclone: (doc) => {
-      // 클론된 wrap의 높이 고정
-      const el = doc.querySelector('[data-capture-wrap]');
-      if (el) el.style.height = actualHeight + 'px';
-    }
-  });
-
-  document.body.removeChild(wrap);
   return canvas;
 }
 
-async function shareImage(containerId, mode) {
-  showToast('이미지 생성 중...');
-  try {
-    const canvas = await captureGameImage(containerId, mode);
-    const link = document.createElement('a');
-    const today = new Date();
-    link.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    showToast('이미지 저장 완료!');
-  } catch(e) {
-    showToast('이미지 생성 실패');
-  }
-}
-
-async function shareImageKakao(containerId, mode) {
-  showToast('이미지 생성 중...');
-  try {
-    const canvas = await captureGameImage(containerId, mode);
-    canvas.toBlob(async (blob) => {
-      const file = new File([blob], 'bracket.png', { type: 'image/png' });
-      if (navigator.share && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file] });
-      } else {
-        // fallback: 이미지 다운로드
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'bracket.png';
-        a.click();
-        showToast('이미지 저장됐어요! 카톡에서 직접 전송하세요');
-      }
-    }, 'image/png');
-  } catch(e) {
-    showToast('공유 실패');
-  }
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 // ── 클립보드 복사 ─────────────────────────────────────────
