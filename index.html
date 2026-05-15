@@ -145,75 +145,26 @@
   .section-title { font-size: .82rem; font-weight: 700; color: var(--text2); letter-spacing: 0; }
   .section-body { padding: 17px 18px; }
 
-  .member-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 9px; margin-bottom: 14px; }
+  .member-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
   .member-chip {
-    position: relative;
-    min-height: 86px;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 13px 8px;
-    border-radius: 15px;
-    border: 1.5px solid var(--border);
-    background: linear-gradient(180deg,#fff,#FAFBF8);
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
     cursor: pointer;
-    transition: transform .14s ease, border-color .14s ease, background .14s ease, box-shadow .14s ease;
-    text-align: center;
+    transition: border-color .14s ease, background .14s ease;
     user-select: none;
   }
-  .member-chip:hover { border-color: var(--accent-strong); }
-  @media (hover: hover) { .member-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); } }
-  .member-chip.selected { border-color: var(--accent-strong); background: linear-gradient(180deg,#FCFFF3,var(--accent-bg)); box-shadow: inset 0 0 0 1px rgba(15,107,69,.08); }
-  .member-chip.selected::after {
-    content: '✓';
-    position: absolute;
-    top: 7px;
-    right: 8px;
-    width: 18px;
-    height: 18px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--green);
-    font-size: .68rem;
-    font-weight: 900;
+  .member-chip:active { opacity: .8; }
+  .member-chip.selected {
+    border-color: var(--green);
+    background: var(--green);
   }
-  .chip-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: var(--surface2);
-    color: var(--text2);
-    font-size: .88rem;
-    font-weight: 800;
-    transition: background .14s ease, color .14s ease;
-  }
-  .member-chip.selected .chip-avatar { background: linear-gradient(135deg,var(--accent),#8AD610); color: var(--green); }
-  .chip-name { font-size: .83rem; font-weight: 700; color: var(--text); }
-  .member-chip.selected .chip-name { color: var(--green); }
-  .chip-delete {
-    position: absolute;
-    top: 7px;
-    left: 8px;
-    width: 18px;
-    height: 18px;
-    display: grid;
-    place-items: center;
-    border: 0;
-    border-radius: 50%;
-    background: rgba(255,255,255,.7);
-    color: var(--text3);
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity .14s ease, color .14s ease;
-  }
-  .member-chip:hover .chip-delete { opacity: 1; }
-  .chip-delete:hover { color: var(--danger); }
+  .chip-name { font-size: .84rem; font-weight: 600; color: var(--text2); transition: color .14s ease; }
+  .member-chip.selected .chip-name { color: #fff; }
 
   .selected-count { font-size: .84rem; color: var(--text2); }
   .selected-count span { color: var(--green); font-weight: 900; }
@@ -461,7 +412,7 @@
   <div id="tab-today" class="panel active">
     <div class="section">
       <div class="section-header">
-        <span class="section-title">오늘 참가자</span>
+        <span class="section-title">참가자</span>
         <div style="display:flex;gap:6px">
           <button class="btn btn-ghost" onclick="selectAll()">전체 선택</button>
           <button class="btn btn-ghost" onclick="selectNone()">전체 해제</button>
@@ -469,9 +420,9 @@
       </div>
       <div class="section-body">
         <div id="todayNotice" class="notice" style="padding:24px 0 8px">
-          <div class="notice-text">멤버 관리 탭에서<br>기본 멤버를 먼저 등록해주세요</div>
+          <div class="notice-text">멤버 관리 탭에서<br>클럽과 멤버를 먼저 등록해주세요</div>
         </div>
-        <div id="memberChips" class="member-grid" style="display:none"></div>
+        <div id="memberChips" style="display:none"></div>
         <div id="selectedCount" class="selected-count" style="display:none"></div>
       </div>
     </div>
@@ -522,7 +473,7 @@
     <div class="section">
       <div class="section-header"><span class="section-title">고정 페어 설정</span></div>
       <div class="section-body">
-        <p style="font-size:.82rem;color:var(--text3);margin-bottom:14px;line-height:1.6">선택한 두 명은 항상 같은 팀으로 출전합니다. 오늘 참가자 중에서만 선택됩니다.</p>
+        <p style="font-size:.82rem;color:var(--text3);margin-bottom:14px;line-height:1.6">선택한 두 명은 항상 같은 팀으로 출전합니다. 참가자 중에서만 선택됩니다.</p>
         <div class="input-row" style="margin-bottom:10px">
           <select id="fixedP1"><option value="">선수 1</option></select>
           <select id="fixedP2"><option value="">선수 2</option></select>
@@ -599,38 +550,79 @@
   </div>
 
   <div id="tab-members" class="panel">
+    <!-- 클럽 추가 -->
     <div class="section">
-      <div class="section-header"><span class="section-title">기본 멤버</span><button class="btn btn-ghost" onclick="clearAllMembers()">전체 삭제</button></div>
+      <div class="section-header">
+        <span class="section-title">클럽</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="clubNameInput" placeholder="클럽 이름" style="width:120px;min-height:34px;padding:6px 10px;font-size:.82rem" onkeyup="if(event.key==='Enter'&&!event.isComposing)addClub()">
+          <button class="btn btn-accent" onclick="addClub()">추가</button>
+        </div>
+      </div>
+      <div id="clubList" class="section-body" style="padding:10px 18px"></div>
+    </div>
+    <!-- 선택된 클럽 멤버 관리 -->
+    <div id="clubMemberSection" class="section" style="display:none">
+      <div class="section-header">
+        <span class="section-title" id="clubMemberTitle">멤버</span>
+        <button class="btn btn-ghost" onclick="clearClubMembers()">전체 삭제</button>
+      </div>
       <div class="section-body">
-        <p style="font-size:.82rem;color:var(--text3);margin-bottom:14px;line-height:1.6">여기에 등록한 멤버는 저장되며, 매일 대진표 탭에서 참가 여부만 체크하면 됩니다.</p>
         <div class="input-row" style="margin-bottom:14px">
           <input type="text" id="memberInput" placeholder="이름 입력 후 Enter" onkeyup="if(event.key==='Enter'&&!event.isComposing)addMember()">
           <button class="btn btn-accent" onclick="addMember()">추가</button>
         </div>
         <div id="memberManageList"></div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)"><button class="btn btn-ghost" style="width:100%" onclick="loadSample()">샘플 멤버 8명 불러오기</button></div>
       </div>
     </div>
+    <div style="margin-top:4px"><button class="btn btn-ghost" style="width:100%" onclick="loadSample()">샘플 멤버 불러오기</button></div>
   </div>
 </main>
 
 <script>
-let roster = [];
+// 데이터 구조
+// clubs: { clubName: [member, ...], ... }
+let clubs = {};
+let activeClub = null; // 멤버 관리에서 선택된 클럽
 let todaySelected = new Set();
 let basicGames = [], fixedGames = [], abGames = [];
 let fixedPairs = [], teamA = [], teamB = [];
 
-function saveRoster() {
-  try { localStorage.setItem('tennis_roster', JSON.stringify(roster)); } catch(e) {}
+// 저장/불러오기
+function saveClubs() {
+  try { localStorage.setItem('tennis_clubs', JSON.stringify(clubs)); } catch(e) {}
 }
-function loadRoster() {
+function loadClubs() {
   try {
-    const saved = localStorage.getItem('tennis_roster');
-    if (saved) roster = JSON.parse(saved);
+    // 기존 roster 마이그레이션
+    const oldRoster = localStorage.getItem('tennis_roster');
+    const newClubs = localStorage.getItem('tennis_clubs');
+    if (newClubs) {
+      clubs = JSON.parse(newClubs);
+    } else if (oldRoster) {
+      const roster = JSON.parse(oldRoster);
+      if (roster.length) {
+        clubs["기존 클럽"] = roster;
+        saveClubs();
+        localStorage.removeItem('tennis_roster');
+      }
+    }
   } catch(e) {}
 }
 
-loadRoster();
+// roster 호환: 전체 멤버 flat 배열
+function getRoster() {
+  return Object.values(clubs).flat();
+}
+
+loadClubs();
+// 기존 멤버 가나다순 정렬
+Object.keys(clubs).forEach(c => {
+  clubs[c].sort((a, b) => a.localeCompare(b, 'ko'));
+});
+// activeClub 초기값
+if (Object.keys(clubs).length) activeClub = Object.keys(clubs)[0];
+renderClubList();
 renderMemberChips();
 renderMemberManageList();
 renderABTeams();
@@ -667,7 +659,7 @@ function switchTab(tab, btn) {
       list.innerHTML = '<span style="color:var(--green);font-weight:900">' + players.length + '명 참가</span><div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:5px">' + players.map(p => '<span style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px 9px;font-size:.78rem;font-weight:700;white-space:nowrap">' + escapeHtml(p) + '</span>').join('') + '</div>';
     } else {
       summary.style.display = 'block';
-      list.innerHTML = '⚠️ <a href="#" onclick="switchTabByName(\'today\');return false;" style="color:var(--green);font-weight:800">오늘 참가자 탭</a>에서 참가자를 먼저 선택해주세요';
+      list.innerHTML = '⚠️ <a href="#" onclick="switchTabByName(\'today\');return false;" style="color:var(--green);font-weight:800">참가자 탭</a>에서 참가자를 먼저 선택해주세요';
     }
   }
 }
@@ -679,104 +671,225 @@ function switchTabByName(tab) {
   if (idx >= 0) switchTab(tab, btns[idx]);
 }
 
-function addMember() {
-  const inp = document.getElementById('memberInput');
+// 클럽 관리
+function addClub() {
+  const inp = document.getElementById('clubNameInput');
   const name = inp.value.trim();
   if (!name) return;
-  if (roster.includes(name)) { alert('이미 있는 이름입니다'); return; }
-  roster.push(name);
+  if (clubs[name]) { alert('이미 있는 클럽 이름입니다'); return; }
+  clubs[name] = [];
   inp.value = '';
-  saveRoster();
-  renderMemberChips();
+  activeClub = name;
+  saveClubs();
+  renderClubList();
   renderMemberManageList();
+  renderMemberChips();
+}
+
+function removeClub(el) {
+  const name = el.dataset.club;
+  if (!confirm(name + ' 클럽을 삭제하시겠습니까?')) return;
+  // 해당 클럽 멤버 선택 해제
+  (clubs[name] || []).forEach(m => todaySelected.delete(m));
+  delete clubs[name];
+  const keys = Object.keys(clubs);
+  activeClub = keys.length ? keys[0] : null;
+  saveClubs();
+  renderClubList();
+  renderMemberManageList();
+  renderMemberChips();
   updateFixedSelects();
   updateABSelects();
 }
 
-function removeMember(i) {
-  const name = roster[i];
+function selectClub(el) {
+  const name = el.dataset.club;
+  activeClub = name;
+  renderClubList();
+  renderMemberManageList();
+}
+
+function renderClubList() {
+  const el = document.getElementById('clubList');
+  const keys = Object.keys(clubs);
+  if (!keys.length) {
+    el.innerHTML = '<div class="notice-text" style="padding:12px 0;font-size:.82rem;color:var(--text3)">클럽을 추가해주세요</div>';
+    document.getElementById('clubMemberSection').style.display = 'none';
+    return;
+  }
+
+  let html = '';
+  keys.forEach(function(name) {
+    const isActive = name === activeClub;
+    const safeAttr = escapeAttr(name);
+    const safeHtml = escapeHtml(name);
+    const count = (clubs[name] || []).length;
+    const style = isActive
+      ? 'background:var(--green-bg);border-radius:10px;padding:10px 12px;margin:0 -4px 4px'
+      : 'margin-bottom:2px';
+
+    html += '<div class="pair-item" style="' + style + '">';
+    html += '<div style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer" onclick="selectClub(this)" data-club="' + safeAttr + '">';
+    html += '<span id="club-label-' + safeAttr + '" style="font-weight:700;font-size:.9rem">' + safeHtml + '</span>';
+    html += '<span style="font-size:.76rem;color:var(--text3)">' + count + '명</span>';
+    html += '</div>';
+    html += '<div style="display:flex;gap:6px;align-items:center">';
+    html += '<button data-club="' + safeAttr + '" onclick="startEditClub(this)" style="border:0;background:transparent;color:var(--text3);cursor:pointer;font-size:1rem;padding:0 4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>';
+    html += '<button data-club="' + safeAttr + '" onclick="removeClub(this)" style="border:0;background:transparent;color:var(--text3);cursor:pointer;font-size:1rem;padding:0 4px">×</button>';
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+
+  document.getElementById('clubMemberSection').style.display = activeClub ? 'block' : 'none';
+  if (activeClub) document.getElementById('clubMemberTitle').textContent = activeClub + ' 멤버';
+}
+function startEditClub(el) {
+  const name = el.dataset.club;
+  const label = document.getElementById('club-label-' + name);
+  if (!label) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = name;
+  input.style.cssText = 'font-size:.88rem;font-weight:700;border:1px solid var(--accent-strong);border-radius:6px;padding:3px 8px;width:120px;outline:none;background:#fff';
+  input.onkeyup = function(e) {
+    if (e.key === 'Enter' && !e.isComposing) confirmEditClub(name, input.value.trim());
+    if (e.key === 'Escape') renderClubList();
+  };
+  input.onblur = function() { confirmEditClub(name, input.value.trim()); };
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function confirmEditClub(oldName, newName) {
+  if (!newName || newName === oldName) { renderClubList(); return; }
+  if (clubs[newName]) { alert('이미 있는 클럽 이름입니다'); renderClubList(); return; }
+  // 키 이름 변경 (순서 유지)
+  const newClubs = {};
+  Object.keys(clubs).forEach(k => {
+    newClubs[k === oldName ? newName : k] = clubs[k];
+  });
+  clubs = newClubs;
+  if (activeClub === oldName) activeClub = newName;
+  saveClubs();
+  renderClubList();
+  renderMemberChips();
+}
+
+// 멤버 관리
+function addMember() {
+  if (!activeClub) { alert('클럽을 먼저 선택해주세요'); return; }
+  const inp = document.getElementById('memberInput');
+  const name = inp.value.trim();
+  if (!name) return;
+  if ((clubs[activeClub] || []).includes(name)) { alert('이미 있는 이름입니다'); return; }
+  if (!clubs[activeClub]) clubs[activeClub] = [];
+  clubs[activeClub].push(name);
+  clubs[activeClub].sort((a, b) => a.localeCompare(b, "ko"));
+  inp.value = '';
+  saveClubs();
+  renderMemberManageList();
+  renderMemberChips();
+  updateFixedSelects();
+  updateABSelects();
+}
+
+function removeMember(clubName, i) {
+  const name = clubs[clubName][i];
   todaySelected.delete(name);
   fixedPairs = fixedPairs.filter(fp => !fp.includes(name));
   teamA = teamA.filter(p => p !== name);
   teamB = teamB.filter(p => p !== name);
-  roster.splice(i, 1);
-  saveRoster();
-  renderMemberChips();
+  clubs[clubName].splice(i, 1);
+  saveClubs();
   renderMemberManageList();
+  renderMemberChips();
+  renderClubList();
   renderFixedPairs();
   renderABTeams();
   updateFixedSelects();
   updateABSelects();
 }
 
-function clearAllMembers() {
-  if (!confirm('전체 멤버를 삭제하시겠습니까?')) return;
-  roster = [];
-  todaySelected.clear();
-  fixedPairs = [];
-  teamA = [];
-  teamB = [];
-  saveRoster();
-  renderMemberChips();
+function clearClubMembers() {
+  if (!activeClub) return;
+  if (!confirm(`'${activeClub}' 멤버를 전체 삭제하시겠습니까?`)) return;
+  (clubs[activeClub] || []).forEach(m => todaySelected.delete(m));
+  clubs[activeClub] = [];
+  saveClubs();
   renderMemberManageList();
-  renderFixedPairs();
-  renderABTeams();
+  renderMemberChips();
+  renderClubList();
 }
 
 function loadSample() {
+  const clubName = '샘플 클럽';
+  if (!clubs[clubName]) clubs[clubName] = [];
   const s = ['김민준','이서연','박지호','최유나','정현우','강수빈','조태양','윤지은'];
-  s.forEach(name => { if (!roster.includes(name)) roster.push(name); });
-  saveRoster();
-  renderMemberChips();
+  s.forEach(name => { if (!clubs[clubName].includes(name)) clubs[clubName].push(name); });
+  clubs[clubName].sort((a, b) => a.localeCompare(b, "ko"));
+  activeClub = clubName;
+  saveClubs();
+  renderClubList();
   renderMemberManageList();
+  renderMemberChips();
   updateFixedSelects();
   updateABSelects();
 }
 
 function renderMemberManageList() {
   const el = document.getElementById('memberManageList');
-  if (!roster.length) {
-    el.innerHTML = '<div class="notice" style="padding:24px 0"><div class="notice-text">등록된 멤버가 없습니다</div></div>';
+  if (!el) return;
+  const members = activeClub ? (clubs[activeClub] || []) : [];
+  if (!members.length) {
+    el.innerHTML = '<div class="notice" style="padding:16px 0"><div class="notice-text">등록된 멤버가 없습니다</div></div>';
     return;
   }
-  el.innerHTML = roster.map((name, i) => `
+  el.innerHTML = members.map((name, i) => `
     <div class="pair-item">
-      <span style="font-weight:800">${escapeHtml(name)}</span>
-      <button onclick="removeMember(${i})">×</button>
+      <span style="font-weight:700">${escapeHtml(name)}</span>
+      <button onclick="removeMember('${escapeAttr(activeClub)}',${i})">×</button>
     </div>`).join('');
 }
 
 function renderMemberChips() {
   const notice = document.getElementById('todayNotice');
-  const grid = document.getElementById('memberChips');
+  const container = document.getElementById('memberChips');
   const countEl = document.getElementById('selectedCount');
+  const roster = getRoster();
 
   if (!roster.length) {
     notice.style.display = 'block';
-    grid.style.display = 'none';
+    container.style.display = 'none';
     countEl.style.display = 'none';
     return;
   }
 
   notice.style.display = 'none';
-  grid.style.display = 'grid';
+  container.style.display = 'block';
   countEl.style.display = 'block';
 
-  grid.innerHTML = roster.map((name, i) => {
-    const safeName = escapeHtml(name);
-    const attrName = String(name).replace(/'/g, "\\'").replace(/\\/g, "\\\\");
-    const sel = todaySelected.has(name);
-    return `
-      <div class="member-chip ${sel ? 'selected' : ''}" onclick="togglePlayer('${attrName}')">
-        <button class="chip-delete" onclick="event.stopPropagation();removeMember(${i})">×</button>
-        <div class="chip-avatar">${safeName[0] || ''}</div>
-        <div class="chip-name">${safeName}</div>
-      </div>`;
-  }).join('');
+  let html = '';
+  Object.keys(clubs).forEach(clubName => {
+    const members = clubs[clubName] || [];
+    if (!members.length) return;
+    html += '<div style="margin-bottom:14px">';
+    html += '<div style="font-size:.75rem;font-weight:700;color:var(--text3);letter-spacing:.06em;margin-bottom:7px;padding:0 2px">' + escapeHtml(clubName) + '</div>';
+    html += '<div class="member-grid">';
+    members.forEach(function(name) {
+      const safeName = escapeHtml(name);
+      const attrName = escapeAttr(name);
+      const sel = todaySelected.has(name);
+      html += '<div class="member-chip ' + (sel ? 'selected' : '') + '" onclick="togglePlayer(' + "'" + attrName + "'" + ')">';
+      html += '<div class="chip-name">' + safeName + '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+  container.innerHTML = html;
 
   updateSelectedCount();
 }
-
 function togglePlayer(name) {
   if (todaySelected.has(name)) todaySelected.delete(name);
   else todaySelected.add(name);
@@ -787,9 +900,9 @@ function updateSelectedCount() {
   const count = todaySelected.size;
   document.getElementById('selectedCount').innerHTML = `<span>${count}명</span> 선택됨${count < 4 ? ' &nbsp;·&nbsp; 최소 4명 필요' : ''}`;
 }
-function selectAll() { roster.forEach(n => todaySelected.add(n)); renderMemberChips(); }
+function selectAll() { getRoster().forEach(n => todaySelected.add(n)); renderMemberChips(); }
 function selectNone() { todaySelected.clear(); renderMemberChips(); }
-function getTodayPlayers() { return roster.filter(n => todaySelected.has(n)); }
+function getTodayPlayers() { return getRoster().filter(n => todaySelected.has(n)); }
 
 function getCombos(arr, r) {
   const res = [];
@@ -1081,7 +1194,7 @@ function escapeHtml(value) {
 }
 function escapeAttr(value) { return escapeHtml(value); }
 
-// ── 토스트 알림 ──────────────────────────────────────────
+// 토스트 알림
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -1089,7 +1202,7 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-// ── 대진표 텍스트 생성 ────────────────────────────────────
+// 대진표 텍스트 생성
 function buildShareText(mode) {
   const arr = mode === 'basic' ? basicGames : mode === 'fixed' ? fixedGames : abGames;
   const labelMap = { basic: '오늘 대진표', fixed: '고정팀 대진표', ab: 'A/B 팀전' };
@@ -1115,7 +1228,7 @@ function buildShareText(mode) {
   return lines.join('\n');
 }
 
-// ── 대진표 이미지 캡처 (Canvas 직접 드로잉) ─────────────────
+// 대진표 이미지 캡처 (Canvas 직접 드로잉)
 async function captureGameImage(containerId, mode) {
   const labelMap = { basic: '랜덤 대진표', fixed: '고정 페어 대진표', ab: 'A/B 팀전' };
   const today = new Date();
@@ -1265,7 +1378,7 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ── 클립보드 복사 ─────────────────────────────────────────
+// 클립보드 복사
 function shareText(mode) {
   const text = buildShareText(mode);
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1342,7 +1455,7 @@ async function shareImageKakao(containerId, mode) {
   }
 }
 
-// ── 카카오톡 공유 ─────────────────────────────────────────
+// 카카오톡 공유
 function shareKakao(mode) {
   const text = buildShareText(mode);
   // 카카오 SDK가 없을 경우 → Web Share API → 복사 fallback
