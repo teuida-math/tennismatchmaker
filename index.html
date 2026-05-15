@@ -1152,13 +1152,11 @@ async function captureGameImage(containerId, mode) {
 
   // 헤더 텍스트
   ctx.fillStyle = '#C8F43D';
-  ctx.font = '600 20px Inter, sans-serif';
-  ctx.letterSpacing = '3px';
+  ctx.font = '700 20px Inter, sans-serif';
   ctx.fillText('TENNIS MATCH MAKER', PADDING, 44);
 
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 34px "Noto Sans KR", sans-serif';
-  ctx.letterSpacing = '0px';
   ctx.fillText(labelMap[mode], PADDING, 86);
 
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
@@ -1314,7 +1312,7 @@ async function shareImage(containerId, mode) {
     showToast('이미지 저장 완료!');
   } catch(e) {
     console.error('shareImage error:', e);
-    showToast('이미지 생성 실패');
+    showToast('오류: ' + (e && e.message ? e.message : String(e)));
   }
 }
 
@@ -1322,28 +1320,33 @@ async function shareImageKakao(containerId, mode) {
   showToast('이미지 생성 중...');
   try {
     const canvas = await captureGameImage(containerId, mode);
-    const dataUrl = canvas.toDataURL('image/png');
 
-    if (navigator.share) {
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], '대진표.png', { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file] });
-        return;
-      }
+    // toBlob으로 변환 (더 안전)
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob 실패')), 'image/png');
+    });
+
+    const file = new File([blob], '대진표.png', { type: 'image/png' });
+
+    // Web Share API로 공유 시도
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] });
+      return;
     }
 
-    // fallback: 이미지 저장
-    const link = document.createElement('a');
+    // fallback: URL 생성 후 다운로드
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     const today = new Date();
-    link.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
-    link.href = dataUrl;
-    link.click();
+    a.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
+    a.href = url;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast('이미지 저장됐어요! 카톡에서 전송하세요');
   } catch(e) {
     console.error('shareImageKakao error:', e);
-    showToast('공유 실패 — 이미지 저장을 눌러주세요');
+    // 최후 fallback: 이미지 저장으로 대체
+    try { await shareImage(containerId, mode); } catch(_) {}
   }
 }
 
