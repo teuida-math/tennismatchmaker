@@ -671,6 +671,31 @@ function getRoster() {
   return Object.values(clubs).flat();
 }
 
+// 내부 선택/대진표용 고유키: 같은 이름이어도 클럽별로 따로 선택되게 함
+// 화면에는 이름만 보여주고, 내부 계산은 clubName::memberName 형태로 구분합니다.
+const PLAYER_KEY_SEP = '::';
+function makePlayerKey(clubName, name) {
+  return String(clubName) + PLAYER_KEY_SEP + String(name);
+}
+function getPlayerNameFromKey(key) {
+  const str = String(key);
+  const idx = str.indexOf(PLAYER_KEY_SEP);
+  return idx >= 0 ? str.slice(idx + PLAYER_KEY_SEP.length) : str;
+}
+function getAllPlayerKeys() {
+  const keys = [];
+  Object.keys(clubs).forEach(clubName => {
+    (clubs[clubName] || []).forEach(name => keys.push(makePlayerKey(clubName, name)));
+  });
+  return keys;
+}
+function removeSelectedByClubAndName(clubName, name) {
+  const key = makePlayerKey(clubName, name);
+  todaySelected.delete(key);
+  // 이전 버전에서 이름만 저장되어 있던 선택값이 남아 있을 경우도 정리
+  todaySelected.delete(name);
+}
+
 loadClubs();
 // 기존 멤버 가나다순 정렬
 Object.keys(clubs).forEach(c => {
@@ -741,8 +766,8 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
       html += '<div class="court-badge">C' + (ci + 1) + '</div>';
       html += '<div class="game-num-wrap" style="margin-top:14px"><div class="game-num">' + (idx + 1) + '</div><div class="done-dot"></div></div>';
       html += '<div class="team-col">';
-      html += '<div class="team-player"' + aCol + '>' + escapeHtml(g.t1[0]) + '</div>';
-      html += '<div class="team-player"' + aCol + '>' + escapeHtml(g.t1[1]) + '</div>';
+      html += '<div class="team-player"' + aCol + '>' + escapeHtml(getPlayerNameFromKey(g.t1[0])) + '</div>';
+      html += '<div class="team-player"' + aCol + '>' + escapeHtml(getPlayerNameFromKey(g.t1[1])) + '</div>';
       html += '</div>';
       html += '<div class="vs-col"><div class="vs-label">VS</div><div class="score-row">';
       html += '<input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="' + g.s1 + '" placeholder="0" data-mode="' + mode + '" data-idx="' + idx + '" data-team="1" oninput="updateScore(this.dataset.mode,+this.dataset.idx,+this.dataset.team,this.value)">';
@@ -750,8 +775,8 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
       html += '<input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="' + g.s2 + '" placeholder="0" data-mode="' + mode + '" data-idx="' + idx + '" data-team="2" oninput="updateScore(this.dataset.mode,+this.dataset.idx,+this.dataset.team,this.value)">';
       html += '</div></div>';
       html += '<div class="team-col right">';
-      html += '<div class="team-player"' + bCol + '>' + escapeHtml(g.t2[0]) + '</div>';
-      html += '<div class="team-player"' + bCol + '>' + escapeHtml(g.t2[1]) + '</div>';
+      html += '<div class="team-player"' + bCol + '>' + escapeHtml(getPlayerNameFromKey(g.t2[0])) + '</div>';
+      html += '<div class="team-player"' + bCol + '>' + escapeHtml(getPlayerNameFromKey(g.t2[1])) + '</div>';
       html += '</div>';
       html += '</div>';
     });
@@ -789,7 +814,7 @@ function switchTab(tab, btn) {
     const list = document.getElementById('basicPlayerList');
     if (players.length) {
       summary.style.display = 'block';
-      list.innerHTML = '<span style="color:var(--green);font-weight:900">' + players.length + '명 참가</span><div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:5px">' + players.map(p => '<span style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px 9px;font-size:.78rem;font-weight:700;white-space:nowrap">' + escapeHtml(p) + '</span>').join('') + '</div>';
+      list.innerHTML = '<span style="color:var(--green);font-weight:900">' + players.length + '명 참가</span><div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:5px">' + players.map(p => '<span style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px 9px;font-size:.78rem;font-weight:700;white-space:nowrap">' + escapeHtml(getPlayerNameFromKey(p)) + '</span>').join('') + '</div>';
     } else {
       summary.style.display = 'block';
       list.innerHTML = '⚠️ <a href="#" onclick="switchTabByName(\'today\');return false;" style="color:var(--green);font-weight:800">참가자 탭</a>에서 참가자를 먼저 선택해주세요';
@@ -823,7 +848,7 @@ function removeClub(el) {
   const name = el.dataset.club;
   if (!confirm(name + ' 클럽을 삭제하시겠습니까?')) return;
   // 해당 클럽 멤버 선택 해제
-  (clubs[name] || []).forEach(m => todaySelected.delete(m));
+  (clubs[name] || []).forEach(m => removeSelectedByClubAndName(name, m));
   delete clubs[name];
   const keys = Object.keys(clubs);
   activeClub = keys.length ? keys[0] : null;
@@ -929,10 +954,11 @@ function addMember() {
 
 function removeMember(clubName, i) {
   const name = clubs[clubName][i];
-  todaySelected.delete(name);
-  fixedPairs = fixedPairs.filter(fp => !fp.includes(name));
-  teamA = teamA.filter(p => p !== name);
-  teamB = teamB.filter(p => p !== name);
+  const key = makePlayerKey(clubName, name);
+  removeSelectedByClubAndName(clubName, name);
+  fixedPairs = fixedPairs.filter(fp => !fp.includes(key));
+  teamA = teamA.filter(p => p !== key);
+  teamB = teamB.filter(p => p !== key);
   clubs[clubName].splice(i, 1);
   saveClubs();
   renderMemberManageList();
@@ -947,7 +973,7 @@ function removeMember(clubName, i) {
 function clearClubMembers() {
   if (!activeClub) return;
   if (!confirm(`'${activeClub}' 멤버를 전체 삭제하시겠습니까?`)) return;
-  (clubs[activeClub] || []).forEach(m => todaySelected.delete(m));
+  (clubs[activeClub] || []).forEach(m => removeSelectedByClubAndName(activeClub, m));
   clubs[activeClub] = [];
   saveClubs();
   renderMemberManageList();
@@ -1006,13 +1032,20 @@ function renderMemberChips() {
   Object.keys(clubs).forEach(clubName => {
     const members = clubs[clubName] || [];
     if (!members.length) return;
-    html += '<div style="margin-bottom:14px">';
-    html += '<div style="font-size:.75rem;font-weight:700;color:var(--text3);letter-spacing:.06em;margin-bottom:7px;padding:0 2px">' + escapeHtml(clubName) + '</div>';
+    const safeClubAttr = escapeAttr(clubName);
+    html += '<div style="margin-bottom:16px">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;padding:0 2px">';
+    html += '<div style="font-size:.75rem;font-weight:800;color:var(--text3);letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(clubName) + '</div>';
+    html += '<div style="display:flex;gap:5px;flex-shrink:0">';
+    html += '<button type="button" onclick="selectClubMembers(\'' + safeClubAttr + '\')" style="border:1px solid var(--border);background:#fff;color:var(--green);border-radius:999px;padding:5px 9px;font-size:.72rem;font-weight:800;cursor:pointer">전체 선택</button>';
+    html += '<button type="button" onclick="deselectClubMembers(\'' + safeClubAttr + '\')" style="border:1px solid var(--border);background:#fff;color:var(--text3);border-radius:999px;padding:5px 9px;font-size:.72rem;font-weight:800;cursor:pointer">해제</button>';
+    html += '</div></div>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-bottom:16px">';
     members.forEach(function(name) {
+      const key = makePlayerKey(clubName, name);
       const safeName = escapeHtml(name);
-      const attrName = escapeAttr(name);
-      const sel = todaySelected.has(name);
+      const attrName = escapeAttr(key);
+      const sel = todaySelected.has(key);
       const chipStyle = sel
         ? 'display:flex;align-items:center;justify-content:center;height:40px;border-radius:10px;border:1.5px solid #0A4A30;background:#0A4A30;cursor:pointer;user-select:none;padding:0 8px'
         : 'display:flex;align-items:center;justify-content:center;height:40px;border-radius:10px;border:1px solid #E1E8DB;background:#fff;cursor:pointer;user-select:none;padding:0 8px';
@@ -1027,19 +1060,33 @@ function renderMemberChips() {
 
   updateSelectedCount();
 }
-function togglePlayer(name) {
-  if (todaySelected.has(name)) todaySelected.delete(name);
-  else todaySelected.add(name);
+function togglePlayer(key) {
+  if (todaySelected.has(key)) todaySelected.delete(key);
+  else todaySelected.add(key);
+  renderMemberChips();
+}
+
+function selectClubMembers(clubName) {
+  (clubs[clubName] || []).forEach(name => todaySelected.add(makePlayerKey(clubName, name)));
+  renderMemberChips();
+}
+
+function deselectClubMembers(clubName) {
+  (clubs[clubName] || []).forEach(name => removeSelectedByClubAndName(clubName, name));
   renderMemberChips();
 }
 
 function updateSelectedCount() {
-  const count = todaySelected.size;
+  // 혹시 이전 버전의 이름-only 선택값이 섞여 있어도 현재 멤버 키만 카운트
+  const validKeys = new Set(getAllPlayerKeys());
+  const count = [...todaySelected].filter(key => validKeys.has(key)).length;
   document.getElementById('selectedCount').innerHTML = `<span>${count}명</span> 선택됨${count < 4 ? ' &nbsp;·&nbsp; 최소 4명 필요' : ''}`;
 }
-function selectAll() { getRoster().forEach(n => todaySelected.add(n)); renderMemberChips(); }
+function selectAll() { getAllPlayerKeys().forEach(key => todaySelected.add(key)); renderMemberChips(); }
 function selectNone() { todaySelected.clear(); renderMemberChips(); }
-function getTodayPlayers() { return getRoster().filter(n => todaySelected.has(n)); }
+function getTodayPlayers() {
+  return getAllPlayerKeys().filter(key => todaySelected.has(key));
+}
 
 function getCombos(arr, r) {
   const res = [];
@@ -1142,8 +1189,8 @@ function renderGames(containerId, games, mode, aColor, bColor) {
     <div class="game-card ${g.done ? 'done' : ''}" id="${mode}-g-${i}" style="animation-delay:${i * 0.025}s">
       <div class="game-num-wrap"><div class="game-num">${i + 1}</div><div class="done-dot"></div></div>
       <div class="team-col">
-        <div class="team-player" ${aColor ? `style="color:${aColor}"` : ''}>${escapeHtml(g.t1[0])}</div>
-        <div class="team-player" ${aColor ? `style="color:${aColor}"` : ''}>${escapeHtml(g.t1[1])}</div>
+        <div class="team-player" ${aColor ? `style="color:${aColor}"` : ''}>${escapeHtml(getPlayerNameFromKey(g.t1[0]))}</div>
+        <div class="team-player" ${aColor ? `style="color:${aColor}"` : ''}>${escapeHtml(getPlayerNameFromKey(g.t1[1]))}</div>
         <div class="team-sublabel">팀 A</div>
       </div>
       <div class="vs-col">
@@ -1155,8 +1202,8 @@ function renderGames(containerId, games, mode, aColor, bColor) {
         </div>
       </div>
       <div class="team-col right">
-        <div class="team-player" ${bColor ? `style="color:${bColor}"` : ''}>${escapeHtml(g.t2[0])}</div>
-        <div class="team-player" ${bColor ? `style="color:${bColor}"` : ''}>${escapeHtml(g.t2[1])}</div>
+        <div class="team-player" ${bColor ? `style="color:${bColor}"` : ''}>${escapeHtml(getPlayerNameFromKey(g.t2[0]))}</div>
+        <div class="team-player" ${bColor ? `style="color:${bColor}"` : ''}>${escapeHtml(getPlayerNameFromKey(g.t2[1]))}</div>
         <div class="team-sublabel">팀 B</div>
       </div>
     </div>`).join('');
@@ -1178,7 +1225,7 @@ function updateFixedSelects() {
   const players = getTodayPlayers();
   ['fixedP1','fixedP2'].forEach(id => {
     const s = document.getElementById(id), v = s.value;
-    s.innerHTML = `<option value="">선수 선택</option>` + players.map(p => `<option value="${escapeAttr(p)}"${p === v ? ' selected' : ''}>${escapeHtml(p)}</option>`).join('');
+    s.innerHTML = `<option value="">선수 선택</option>` + players.map(p => `<option value="${escapeAttr(p)}"${p === v ? ' selected' : ''}>${escapeHtml(getPlayerNameFromKey(p))}</option>`).join('');
   });
 }
 
@@ -1194,7 +1241,7 @@ function addFixedPair() {
 function renderFixedPairs() {
   const el = document.getElementById('fixedPairsList');
   el.innerHTML = fixedPairs.length ? fixedPairs.map((fp, i) =>
-    `<div class="pair-item"><span style="font-weight:800">${escapeHtml(fp[0])} + ${escapeHtml(fp[1])}</span><button onclick="removeFixedPair(${i})">×</button></div>`
+    `<div class="pair-item"><span style="font-weight:800">${escapeHtml(getPlayerNameFromKey(fp[0]))} + ${escapeHtml(getPlayerNameFromKey(fp[1]))}</span><button onclick="removeFixedPair(${i})">×</button></div>`
   ).join('') : '<div class="empty-hint">고정 파트너가 없습니다</div>';
 }
 function removeFixedPair(i) { fixedPairs.splice(i, 1); renderFixedPairs(); }
@@ -1225,7 +1272,7 @@ function generateFixed() {
 function updateABSelects() {
   const players = getTodayPlayers();
   ['abSelectA','abSelectB'].forEach(id => {
-    document.getElementById(id).innerHTML = `<option value="">선수 선택</option>` + players.map(p => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join('');
+    document.getElementById(id).innerHTML = `<option value="">선수 선택</option>` + players.map(p => `<option value="${escapeAttr(p)}">${escapeHtml(getPlayerNameFromKey(p))}</option>`).join('');
   });
 }
 
@@ -1241,7 +1288,7 @@ function renderABTeams() {
   ['A','B'].forEach(team => {
     const arr = team === 'A' ? teamA : teamB;
     document.getElementById(`team${team}List`).innerHTML = arr.length
-      ? arr.map((p, i) => `<div class="ab-player-item"><span>${escapeHtml(p)}</span><button onclick="removeFromTeam('${team}',${i})">×</button></div>`).join('')
+      ? arr.map((p, i) => `<div class="ab-player-item"><span>${escapeHtml(getPlayerNameFromKey(p))}</span><button onclick="removeFromTeam('${team}',${i})">×</button></div>`).join('')
       : `<div class="empty-hint">선수를 추가하세요</div>`;
   });
 }
@@ -1320,7 +1367,7 @@ function renderStandings() {
       const tot = s.w + s.l, wr = tot ? Math.round(s.w / tot * 100) : 0, diff = s.gf - s.ga;
       return `<div class="standing-item">
         <div class="rank ${rc[i] || ''}">${i + 1}</div>
-        <div class="standing-name">${escapeHtml(name)}</div>
+        <div class="standing-name">${escapeHtml(getPlayerNameFromKey(name))}</div>
         <div class="standing-num win">${s.w}</div>
         <div class="standing-num loss">${s.l}</div>
         <div class="wr-wrap"><span class="wr-label">${wr}%</span><div class="wr-bar"><div class="wr-fill" style="width:${wr}%"></div></div></div>
@@ -1361,7 +1408,7 @@ function buildShareText(mode) {
     const num = String(i + 1).padStart(2, ' ');
     const score = (g.s1 !== '' && g.s2 !== '') ? ` (${g.s1}:${g.s2})` : '';
     const done = g.done ? ' ✓' : '';
-    lines.push(`${num}게임  ${g.t1[0]}·${g.t1[1]}  vs  ${g.t2[0]}·${g.t2[1]}${score}${done}`);
+    lines.push(`${num}게임  ${getPlayerNameFromKey(g.t1[0])}·${getPlayerNameFromKey(g.t1[1])}  vs  ${getPlayerNameFromKey(g.t2[0])}·${getPlayerNameFromKey(g.t2[1])}${score}${done}`);
   });
 
   lines.push('', '— Tennis Bracket으로 생성 —');
@@ -1438,8 +1485,8 @@ async function captureGameImage(containerId, mode) {
     const nameX = PADDING + 28;
     ctx.fillStyle = '#172018';
     ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
-    ctx.fillText(g.t1[0], nameX, y + 38);
-    ctx.fillText(g.t1[1], nameX, y + 72);
+    ctx.fillText(getPlayerNameFromKey(g.t1[0]), nameX, y + 38);
+    ctx.fillText(getPlayerNameFromKey(g.t1[1]), nameX, y + 72);
     ctx.fillStyle = '#9CA79A';
     ctx.font = '500 18px "Noto Sans KR", sans-serif';
     ctx.fillText('팀 A', nameX, y + 100);
@@ -1480,8 +1527,8 @@ async function captureGameImage(containerId, mode) {
     ctx.fillStyle = '#172018';
     ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(g.t2[0], W - PADDING, y + 38);
-    ctx.fillText(g.t2[1], W - PADDING, y + 72);
+    ctx.fillText(getPlayerNameFromKey(g.t2[0]), W - PADDING, y + 38);
+    ctx.fillText(getPlayerNameFromKey(g.t2[1]), W - PADDING, y + 72);
     ctx.fillStyle = '#9CA79A';
     ctx.font = '500 18px "Noto Sans KR", sans-serif';
     ctx.fillText('팀 B', W - PADDING, y + 100);
