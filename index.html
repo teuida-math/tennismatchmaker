@@ -145,27 +145,26 @@
   .section-title { font-size: .82rem; font-weight: 700; color: var(--text2); letter-spacing: 0; }
   .section-body { padding: 14px 14px; }
 
-  .member-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .member-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
   .member-chip {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    height: 36px;
-    border-radius: 8px;
+    height: 34px;
     padding: 0 14px;
+    border-radius: 8px;
     border: 1px solid var(--border);
     background: #fff;
     cursor: pointer;
     transition: border-color .14s ease, background .14s ease;
     user-select: none;
-    min-width: 0;
+    white-space: nowrap;
   }
   .member-chip:active { opacity: .8; }
   .member-chip.selected {
     border-color: var(--green);
     background: var(--green);
   }
-  .chip-name { font-size: .8rem; font-weight: 600; color: var(--text2); transition: color .14s ease; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip-name { font-size: .84rem; font-weight: 600; color: var(--text2); transition: color .14s ease; }
   .member-chip.selected .chip-name { color: #fff; }
 
   .selected-count { font-size: .84rem; color: var(--text2); }
