@@ -1008,13 +1008,17 @@ function renderMemberChips() {
     if (!members.length) return;
     html += '<div style="margin-bottom:14px">';
     html += '<div style="font-size:.75rem;font-weight:700;color:var(--text3);letter-spacing:.06em;margin-bottom:7px;padding:0 2px">' + escapeHtml(clubName) + '</div>';
-    html += '<div class="member-grid">';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px">';
     members.forEach(function(name) {
       const safeName = escapeHtml(name);
       const attrName = escapeAttr(name);
       const sel = todaySelected.has(name);
-      html += '<div class="member-chip ' + (sel ? 'selected' : '') + '" onclick="togglePlayer(' + "'" + attrName + "'" + ')">';
-      html += '<div class="chip-name">' + safeName + '</div>';
+      const chipStyle = sel
+        ? 'display:inline-flex;align-items:center;height:34px;padding:0 14px;border-radius:8px;border:1.5px solid #0A4A30;background:#0A4A30;cursor:pointer;white-space:nowrap;user-select:none'
+        : 'display:inline-flex;align-items:center;height:34px;padding:0 14px;border-radius:8px;border:1px solid #E1E8DB;background:#fff;cursor:pointer;white-space:nowrap;user-select:none';
+      html += '<div style="' + chipStyle + '" onclick="togglePlayer(' + "'" + attrName + "'" + ')">';
+      const nameColor = sel ? '#fff' : '#657064';
+      html += '<div style="font-size:.84rem;font-weight:600;color:' + nameColor + '">' + safeName + '</div>';
       html += '</div>';
     });
     html += '</div></div>';
