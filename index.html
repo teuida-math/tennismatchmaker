@@ -1106,16 +1106,39 @@ function shuffle(arr) {
   return arr;
 }
 
-function buildMatches(playerList) {
-  const combos = getCombos(playerList, 2), matches = [];
+function buildMatches(playerList, count) {
+  const combos = getCombos(playerList, 2), base = [];
   for (let i = 0; i < combos.length; i++) {
     for (let j = i + 1; j < combos.length; j++) {
       if (!combos[i].some(p => combos[j].includes(p))) {
-        matches.push({ t1: combos[i], t2: combos[j], s1: '', s2: '', done: false });
+        base.push({ t1: combos[i], t2: combos[j], s1: '', s2: '', done: false });
       }
     }
   }
-  return shuffle(matches);
+
+  if (!base.length) return [];
+
+  const needed = count || base.length;
+  const matches = [];
+  while (matches.length < needed) {
+    shuffle(base).forEach(m => {
+      if (matches.length < needed) {
+        matches.push({ t1: [...m.t1], t2: [...m.t2], s1: '', s2: '', done: false });
+      }
+    });
+  }
+  return matches;
+}
+
+function countUniqueMatches(playerList) {
+  const combos = getCombos(playerList, 2);
+  let total = 0;
+  for (let i = 0; i < combos.length; i++) {
+    for (let j = i + 1; j < combos.length; j++) {
+      if (!combos[i].some(p => combos[j].includes(p))) total++;
+    }
+  }
+  return total;
 }
 
 function smartPick(matches, playerList, count, fixedPairsExempt = []) {
@@ -1176,10 +1199,11 @@ function generateBasic() {
   if (players.length < 4) { alert('최소 4명을 선택해주세요'); return; }
   const count = parseInt(document.getElementById('gameCount').value) || 10;
   const courts = parseInt(document.getElementById('courtCount').value) || 1;
-  basicGames = smartPick(buildMatches(players), players, count);
+  const uniqueCount = countUniqueMatches(players);
+  basicGames = smartPick(buildMatches(players, count), players, count);
   renderGamesWithCourt('basicGames', basicGames, 'basic', courts);
   document.getElementById('basicResult').style.display = 'block';
-  document.getElementById('basicBadge').textContent = basicGames.length + '게임';
+  document.getElementById('basicBadge').textContent = basicGames.length + '게임' + (basicGames.length > uniqueCount ? ' (반복 포함)' : '');
 }
 
 function renderGames(containerId, games, mode, aColor, bColor) {
