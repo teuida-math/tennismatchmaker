@@ -313,6 +313,52 @@
   .pos { color: var(--win); } .neg { color: var(--danger); } .zero { color: var(--text3); }
   .empty-hint { padding: 10px 8px; font-size: .8rem; color: var(--text3); }
 
+  /* 라운드 블록 */
+  .court-badge {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: .66rem;
+    font-weight: 800;
+    color: var(--green);
+    background: var(--accent);
+    padding: 2px 7px;
+    border-radius: 999px;
+    letter-spacing: .04em;
+  }
+  .round-block {
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 0;
+  }
+  .round-block:last-child { border-bottom: 0; }
+  .round-label {
+    padding: 8px 18px 6px;
+    font-size: .72rem;
+    font-weight: 800;
+    color: var(--green);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .round-game {
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .round-game:last-child { border-bottom: 0; }
+  .court-label {
+    position: absolute;
+    top: 8px;
+    left: 18px;
+    font-size: .66rem;
+    font-weight: 800;
+    color: var(--accent-strong);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .round-game .game-num-wrap { margin-top: 16px; }
+
   /* 공유 버튼 */
   .share-bar {
     display: flex;
@@ -447,7 +493,14 @@
             <div class="setting-label">게임 수</div>
             <div class="setting-desc">최대 가능 수 내에서 균형 있게 생성</div>
           </div>
-          <input type="number" id="gameCount" value="10" min="1" max="100">
+          <input type="number" inputmode="numeric" id="gameCount" value="10" min="1" max="100">
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">코트 수</div>
+            <div class="setting-desc">동시에 진행할 코트 수</div>
+          </div>
+          <input type="number" inputmode="numeric" id="courtCount" value="1" min="1" max="5">
         </div>
         <button class="btn btn-primary" onclick="generateBasic()">랜덤 대진표 생성</button>
       </div>
@@ -485,7 +538,8 @@
     <div class="section">
       <div class="section-header"><span class="section-title">설정</span></div>
       <div class="section-body">
-        <div class="setting-row"><div class="setting-label">게임 수</div><input type="number" id="fixedGameCount" value="10" min="1" max="100"></div>
+        <div class="setting-row"><div class="setting-label">게임 수</div><input type="number" inputmode="numeric" id="fixedGameCount" value="10" min="1" max="100"></div>
+        <div class="setting-row"><div class="setting-label">코트 수</div><input type="number" inputmode="numeric" id="fixedCourtCount" value="1" min="1" max="5"></div>
         <button class="btn btn-primary" onclick="generateFixed()">고정팀 대진표 생성</button>
       </div>
     </div>
@@ -526,7 +580,8 @@
     <div class="section">
       <div class="section-header"><span class="section-title">설정</span></div>
       <div class="section-body">
-        <div class="setting-row"><div class="setting-label">게임 수</div><input type="number" id="abGameCount" value="10" min="1" max="100"></div>
+        <div class="setting-row"><div class="setting-label">게임 수</div><input type="number" inputmode="numeric" id="abGameCount" value="10" min="1" max="100"></div>
+        <div class="setting-row"><div class="setting-label">코트 수</div><input type="number" inputmode="numeric" id="abCourtCount" value="1" min="1" max="5"></div>
         <button class="btn btn-primary" onclick="generateAB()">팀전 대진표 생성</button>
       </div>
     </div>
@@ -626,6 +681,83 @@ renderClubList();
 renderMemberChips();
 renderMemberManageList();
 renderABTeams();
+
+
+// 코트별 라운드 묶기
+function groupByCourt(games, courtCount) {
+  if (courtCount <= 1) return games.map(g => [g]); // 코트1은 그냥 1게임씩
+  const remaining = [...games];
+  const rounds = [];
+  while (remaining.length > 0) {
+    const round = [];
+    const usedPlayers = new Set();
+    const nextRemaining = [];
+    for (const g of remaining) {
+      const players = [...g.t1, ...g.t2];
+      if (round.length < courtCount && !players.some(p => usedPlayers.has(p))) {
+        round.push(g);
+        players.forEach(p => usedPlayers.add(p));
+      } else {
+        nextRemaining.push(g);
+      }
+    }
+    if (round.length === 0) {
+      // 배정 불가한 게임은 1개씩 처리
+      rounds.push([nextRemaining.shift()]);
+      remaining.length = 0;
+      remaining.push(...nextRemaining);
+    } else {
+      rounds.push(round);
+      remaining.length = 0;
+      remaining.push(...nextRemaining);
+    }
+  }
+  return rounds;
+}
+
+// 라운드형 렌더링
+function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bColor) {
+  const el = document.getElementById(containerId);
+  if (!games.length) { el.innerHTML = '<div class="notice"><div class="notice-text">게임이 없습니다</div></div>'; return; }
+
+  const rounds = groupByCourt(games, courtCount);
+  const useSingleCourt = courtCount <= 1 || rounds.every(function(r) { return r.length === 1; });
+
+  if (useSingleCourt) {
+    renderGames(containerId, games, mode, aColor, bColor);
+    return;
+  }
+
+  let html = '';
+  rounds.forEach(function(round, ri) {
+    html += '<div class="round-block">';
+    html += '<div class="round-label">라운드 ' + (ri + 1) + '</div>';
+    round.forEach(function(g, ci) {
+      const idx = games.indexOf(g);
+      const aCol = aColor ? ' style="color:' + aColor + '"' : '';
+      const bCol = bColor ? ' style="color:' + bColor + '"' : '';
+      html += '<div class="game-card round-game ' + (g.done ? 'done' : '') + '" id="' + mode + '-g-' + idx + '">';
+      html += '<div class="court-badge">C' + (ci + 1) + '</div>';
+      html += '<div class="game-num-wrap" style="margin-top:14px"><div class="game-num">' + (idx + 1) + '</div><div class="done-dot"></div></div>';
+      html += '<div class="team-col">';
+      html += '<div class="team-player"' + aCol + '>' + escapeHtml(g.t1[0]) + '</div>';
+      html += '<div class="team-player"' + aCol + '>' + escapeHtml(g.t1[1]) + '</div>';
+      html += '</div>';
+      html += '<div class="vs-col"><div class="vs-label">VS</div><div class="score-row">';
+      html += '<input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="' + g.s1 + '" placeholder="0" data-mode="' + mode + '" data-idx="' + idx + '" data-team="1" oninput="updateScore(this.dataset.mode,+this.dataset.idx,+this.dataset.team,this.value)">';
+      html += '<span class="score-sep">:</span>';
+      html += '<input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="' + g.s2 + '" placeholder="0" data-mode="' + mode + '" data-idx="' + idx + '" data-team="2" oninput="updateScore(this.dataset.mode,+this.dataset.idx,+this.dataset.team,this.value)">';
+      html += '</div></div>';
+      html += '<div class="team-col right">';
+      html += '<div class="team-player"' + bCol + '>' + escapeHtml(g.t2[0]) + '</div>';
+      html += '<div class="team-player"' + bCol + '>' + escapeHtml(g.t2[1]) + '</div>';
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
 
 
 const heroMap = {
@@ -991,8 +1123,9 @@ function generateBasic() {
   const players = getTodayPlayers();
   if (players.length < 4) { alert('최소 4명을 선택해주세요'); return; }
   const count = parseInt(document.getElementById('gameCount').value) || 10;
+  const courts = parseInt(document.getElementById('courtCount').value) || 1;
   basicGames = smartPick(buildMatches(players), players, count);
-  renderGames('basicGames', basicGames, 'basic');
+  renderGamesWithCourt('basicGames', basicGames, 'basic', courts);
   document.getElementById('basicResult').style.display = 'block';
   document.getElementById('basicBadge').textContent = basicGames.length + '게임';
 }
@@ -1011,9 +1144,9 @@ function renderGames(containerId, games, mode, aColor, bColor) {
       <div class="vs-col">
         <div class="vs-label">VS</div>
         <div class="score-row">
-          <input type="number" class="score-input" min="0" max="99" value="${g.s1}" placeholder="0" oninput="updateScore('${mode}',${i},1,this.value)">
+          <input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="${g.s1}" placeholder="0" oninput="updateScore('${mode}',${i},1,this.value)">
           <span class="score-sep">:</span>
-          <input type="number" class="score-input" min="0" max="99" value="${g.s2}" placeholder="0" oninput="updateScore('${mode}',${i},2,this.value)">
+          <input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="${g.s2}" placeholder="0" oninput="updateScore('${mode}',${i},2,this.value)">
         </div>
       </div>
       <div class="team-col right">
@@ -1077,8 +1210,9 @@ function generateFixed() {
     }
   }
   // smartPick으로 균등하게 배정 (연속출전·출전횟수·파트너중복 모두 고려)
+  const fixedCourts = parseInt(document.getElementById('fixedCourtCount').value) || 1;
   fixedGames = smartPick(shuffle(matches), players, count, fixedPairs);
-  renderGames('fixedGames', fixedGames, 'fixed');
+  renderGamesWithCourt('fixedGames', fixedGames, 'fixed', fixedCourts);
   document.getElementById('fixedResult').style.display = 'block';
   document.getElementById('fixedBadge').textContent = fixedGames.length + '게임';
 }
@@ -1126,8 +1260,9 @@ function generateAB() {
   const matches = [];
   tA.forEach(a => tB.forEach(b => matches.push({ t1: a, t2: b, s1: '', s2: '', done: false })));
   const allPlayers = [...teamA, ...teamB];
+  const abCourts = parseInt(document.getElementById('abCourtCount').value) || 1;
   abGames = smartPick(shuffle(matches), allPlayers, count);
-  renderGames('abGames', abGames, 'ab', '#1677D2', '#0F6B45');
+  renderGamesWithCourt('abGames', abGames, 'ab', abCourts, '#1677D2', '#0F6B45');
   document.getElementById('abResult').style.display = 'block';
   document.getElementById('abBadge').textContent = abGames.length + '게임';
   updateABScoreBar();
