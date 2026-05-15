@@ -1132,9 +1132,9 @@ async function captureGameImage(containerId, mode) {
 
   const W = 720; // 2x for retina
   const PADDING = 40;
-  const HEADER_H = 130;
-  const GAME_H = 100;
-  const FOOTER_H = 60;
+  const HEADER_H = 140;
+  const GAME_H = 120;
+  const FOOTER_H = 70;
   const totalH = HEADER_H + arr.length * GAME_H + FOOTER_H;
 
   const canvas = document.createElement('canvas');
@@ -1195,23 +1195,23 @@ async function captureGameImage(containerId, mode) {
     const nameX = PADDING + 28;
     ctx.fillStyle = '#172018';
     ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
-    ctx.fillText(g.t1[0], nameX, y + 34);
-    ctx.fillText(g.t1[1], nameX, y + 66);
+    ctx.fillText(g.t1[0], nameX, y + 38);
+    ctx.fillText(g.t1[1], nameX, y + 72);
     ctx.fillStyle = '#9CA79A';
     ctx.font = '500 18px "Noto Sans KR", sans-serif';
-    ctx.fillText('팀 A', nameX, y + 90);
+    ctx.fillText('팀 A', nameX, y + 100);
 
     // VS + 스코어
     const midX = W / 2;
     ctx.fillStyle = '#9CA79A';
     ctx.font = 'bold 18px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('VS', midX, y + 34);
+    ctx.fillText('VS', midX, y + 38);
 
     // 스코어 박스
     const s1 = g.s1 !== '' ? g.s1 : '0';
     const s2 = g.s2 !== '' ? g.s2 : '0';
-    const scoreY = y + 50;
+    const scoreY = y + 58;
 
     ctx.fillStyle = '#F3F6F0';
     roundRect(ctx, midX - 76, scoreY - 22, 58, 36, 8);
@@ -1237,11 +1237,11 @@ async function captureGameImage(containerId, mode) {
     ctx.fillStyle = '#172018';
     ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(g.t2[0], W - PADDING, y + 34);
-    ctx.fillText(g.t2[1], W - PADDING, y + 66);
+    ctx.fillText(g.t2[0], W - PADDING, y + 38);
+    ctx.fillText(g.t2[1], W - PADDING, y + 72);
     ctx.fillStyle = '#9CA79A';
     ctx.font = '500 18px "Noto Sans KR", sans-serif';
-    ctx.fillText('팀 B', W - PADDING, y + 90);
+    ctx.fillText('팀 B', W - PADDING, y + 100);
     ctx.textAlign = 'left';
   });
 
