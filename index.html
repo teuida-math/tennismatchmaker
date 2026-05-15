@@ -316,20 +316,18 @@
 
   /* 라운드 블록 */
 .court-badge {
-  position: static;
-  transform: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: .62rem;
-  font-weight: 900;
-  color: var(--green);
-  background: var(--accent);
-  padding: 2px 6px;
-  border-radius: 999px;
-  letter-spacing: .03em;
-  margin-top: 4px;
-}
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: .62rem;
+    font-weight: 900;
+    color: var(--green);
+    background: var(--accent);
+    padding: 2px 6px;
+    border-radius: 999px;
+    letter-spacing: .03em;
+  }
   .round-block {
     border-bottom: 2px solid var(--border);
     margin-bottom: 0;
@@ -360,7 +358,7 @@
     letter-spacing: .06em;
     text-transform: uppercase;
   }
-  .round-game .game-num-wrap { margin-top: 0; }
+  .round-game .game-num-wrap { margin-top: 16px; }
 
   /* 공유 버튼 */
   .share-bar {
@@ -766,7 +764,7 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
       const bCol = bColor ? ' style="color:' + bColor + '"' : '';
       html += '<div class="game-card round-game ' + (g.done ? 'done' : '') + '" id="' + mode + '-g-' + idx + '">';
       html += '<div class="court-badge">C' + (ci + 1) + '</div>';
-      html += '<div class="game-num-wrap" style="margin-top:14px"><div class="game-num">' + (idx + 1) + '</div><div class="done-dot"></div></div>';
+      html += '<div class="game-num-wrap"><div class="game-num">' + (idx + 1) + '</div><div class="done-dot"></div></div>';
       html += '<div class="team-col">';
       html += '<div class="team-player"' + aCol + '>' + escapeHtml(getPlayerNameFromKey(g.t1[0])) + '</div>';
       html += '<div class="team-player"' + aCol + '>' + escapeHtml(getPlayerNameFromKey(g.t1[1])) + '</div>';
