@@ -688,37 +688,37 @@ renderMemberManageList();
 renderABTeams();
 
 /* ── 코트별 라운드 묶기 ── */
+/* 코트1 전용: 선수 겹침 검사로 라운드 묶기 (smartPick 결과에 사용) */
 function groupByCourt(games, courtCount) {
   if (courtCount <= 1) return games.map(g => [g]);
-  const remaining = [...games];
-  const rounds = [];
+  const remaining = [...games], rounds = [];
   while (remaining.length > 0) {
-    const round = [];
-    const usedPlayers = new Set();
-    const nextRemaining = [];
+    const round = [], usedPlayers = new Set(), nextRemaining = [];
     for (const g of remaining) {
       const players = [...g.t1, ...g.t2];
       if (round.length < courtCount && !players.some(p => usedPlayers.has(p))) {
-        round.push(g);
-        players.forEach(p => usedPlayers.add(p));
-      } else {
-        nextRemaining.push(g);
-      }
+        round.push(g); players.forEach(p => usedPlayers.add(p));
+      } else { nextRemaining.push(g); }
     }
     if (round.length === 0) {
-      rounds.push([nextRemaining.shift()]);
-      remaining.length = 0;
-      remaining.push(...nextRemaining);
+      rounds.push([nextRemaining.shift()]); remaining.length = 0; remaining.push(...nextRemaining);
     } else {
-      rounds.push(round);
-      remaining.length = 0;
-      remaining.push(...nextRemaining);
+      rounds.push(round); remaining.length = 0; remaining.push(...nextRemaining);
     }
   }
   return rounds;
 }
 
-/* ── 핵심 수정: court badge 렌더링 ── */
+/* 코트2+ 전용: smartPickByRounds 결과를 courtCount개씩 단순 슬라이싱
+   생성 단계에서 이미 올바른 라운드 순서로 뽑혔으므로 재검사 불필요 */
+function sliceByCourt(games, courtCount) {
+  const rounds = [];
+  for (let i = 0; i < games.length; i += courtCount) {
+    rounds.push(games.slice(i, i + courtCount));
+  }
+  return rounds;
+}
+
 function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bColor) {
   const el = document.getElementById(containerId);
   if (!games.length) {
@@ -726,13 +726,13 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
     return;
   }
 
-  const rounds = groupByCourt(games, courtCount);
-  const useSingleCourt = courtCount <= 1 || rounds.every(function(r) { return r.length === 1; });
-
-  if (useSingleCourt) {
+  if (courtCount <= 1) {
     renderGames(containerId, games, mode, aColor, bColor);
     return;
   }
+
+  /* 코트2+: 생성 결과를 courtCount개씩 그대로 출력 */
+  const rounds = sliceByCourt(games, courtCount);
 
   let html = '';
   rounds.forEach(function(round, ri) {
@@ -744,8 +744,6 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
       const bCol = bColor ? ' style="color:' + bColor + '"' : '';
 
       html += '<div class="game-card round-game ' + (g.done ? 'done' : '') + '" id="' + mode + '-g-' + idx + '">';
-
-      /* ── court badge: 좌상단 절대위치, game-num-wrap margin-top 제거 ── */
       html += '<div class="court-badge">C' + (ci + 1) + '</div>';
       html += '<div class="game-num-wrap" style="margin-top:0">';
       html += '<div class="game-num">' + (idx + 1) + '</div>';
@@ -772,9 +770,9 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
       html += '<div class="team-player"' + bCol + '>' + escapeHtml(getPlayerNameFromKey(g.t2[1])) + '</div>';
       html += '</div>';
 
-      html += '</div>'; /* game-card 닫기 */
+      html += '</div>';
     });
-    html += '</div>'; /* round-block 닫기 */
+    html += '</div>';
   });
   el.innerHTML = html;
 }
@@ -1554,9 +1552,9 @@ async function captureGameImage(containerId, mode) {
 
   const W = 720, PAD = 40, HEADER_H = 140, GAME_H = 116, ROUND_H = 34, FOOTER_H = 70;
 
-  /* 라운드 묶기 — 화면과 동일한 groupByCourt 사용 */
-  const rounds = groupByCourt(arr, courtCount);
-  const useRounds = courtCount > 1 && rounds.some(r => r.length > 1);
+  /* 라운드 묶기: 코트2+ → sliceByCourt, 코트1 → groupByCourt */
+  const rounds = courtCount > 1 ? sliceByCourt(arr, courtCount) : groupByCourt(arr, 1);
+  const useRounds = courtCount > 1;
 
   /* 총 높이 계산 */
   let contentH = 0;
