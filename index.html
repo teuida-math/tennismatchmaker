@@ -1543,49 +1543,142 @@ async function captureGameImage(containerId, mode) {
   const today = new Date();
   const dateStr = `${today.getMonth()+1}/${today.getDate()}(${['일','월','화','수','목','금','토'][today.getDay()]})`;
   const arr = mode === 'basic' ? basicGames : mode === 'fixed' ? fixedGames : abGames;
-  const W = 720, PADDING = 40, HEADER_H = 140, GAME_H = 120, FOOTER_H = 70;
-  const totalH = HEADER_H + arr.length * GAME_H + FOOTER_H;
+
+  /* 코트 수 읽기 (모드별로 다른 input id) */
+  const courtIdMap = { basic: 'courtCount', fixed: 'fixedCourtCount', ab: 'abCourtCount' };
+  const courtCount = parseInt(document.getElementById(courtIdMap[mode])?.value) || 1;
+
+  /* A/B팀전 팀 색상 */
+  const aColor = mode === 'ab' ? '#1677D2' : null;
+  const bColor = mode === 'ab' ? '#0F6B45' : null;
+
+  const W = 720, PAD = 40, HEADER_H = 140, GAME_H = 116, ROUND_H = 34, FOOTER_H = 70;
+
+  /* 라운드 묶기 — 화면과 동일한 groupByCourt 사용 */
+  const rounds = groupByCourt(arr, courtCount);
+  const useRounds = courtCount > 1 && rounds.some(r => r.length > 1);
+
+  /* 총 높이 계산 */
+  let contentH = 0;
+  if (useRounds) {
+    rounds.forEach(r => { contentH += ROUND_H + r.length * GAME_H; });
+  } else {
+    contentH = arr.length * GAME_H;
+  }
+  const totalH = HEADER_H + contentH + FOOTER_H;
+
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = totalH;
   const ctx = canvas.getContext('2d');
+
+  /* ── 배경 ── */
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, totalH);
+
+  /* ── 헤더 ── */
   ctx.fillStyle = '#0A4A30'; ctx.fillRect(0, 0, W, HEADER_H);
-  ctx.fillStyle = '#C8F43D'; ctx.font = '700 20px Inter, sans-serif'; ctx.fillText('TENNIS MATCH MAKER', PADDING, 44);
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 34px "Noto Sans KR", sans-serif'; ctx.fillText(labelMap[mode], PADDING, 86);
-  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '500 22px "Noto Sans KR", sans-serif'; ctx.fillText(dateStr, PADDING, 114);
-  arr.forEach((g, i) => {
-    const y = HEADER_H + i * GAME_H;
+  ctx.fillStyle = '#C8F43D'; ctx.font = '700 20px Inter, sans-serif';
+  ctx.fillText('TENNIS MATCH MAKER', PAD, 44);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 34px "Noto Sans KR", sans-serif';
+  ctx.fillText(labelMap[mode], PAD, 86);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '500 22px "Noto Sans KR", sans-serif';
+  ctx.fillText(dateStr, PAD, 114);
+
+  /* ── 게임 목록 그리기 헬퍼 ── */
+  function drawGame(g, globalIdx, y, courtLabel) {
+    /* 구분선 */
     ctx.fillStyle = '#E1E8DB'; ctx.fillRect(0, y, W, 1);
+    /* done 배경 */
     if (g.done) { ctx.fillStyle = '#F4FFF8'; ctx.fillRect(0, y + 1, W, GAME_H - 1); }
-    const cx = PADDING - 4, cy = y + GAME_H / 2;
+
+    /* C1/C2 뱃지 (코트 모드일 때만) */
+    if (courtLabel) {
+      const badgeX = PAD, badgeY = y + 10;
+      const badgeW = 34, badgeH = 20, badgeR = 10;
+      ctx.fillStyle = '#C8F43D';
+      roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeR); ctx.fill();
+      ctx.fillStyle = '#0A4A30'; ctx.font = 'bold 13px Inter, sans-serif';
+      ctx.textAlign = 'center'; ctx.fillText(courtLabel, badgeX + badgeW / 2, badgeY + 14);
+      ctx.textAlign = 'left';
+    }
+
+    /* 게임 번호 원 */
+    const cx = PAD + (courtLabel ? 50 : 0) - 4;
+    const cy = y + GAME_H / 2 + (courtLabel ? 4 : 0);
     ctx.fillStyle = g.done ? '#C8F43D' : '#F0F2F0';
     ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = g.done ? '#0A4A30' : '#9CA79A';
-    ctx.font = 'bold 20px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(i + 1, cx, cy + 7); ctx.textAlign = 'left';
-    const nameX = PADDING + 28;
-    ctx.fillStyle = '#172018'; ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
-    ctx.fillText(getPlayerNameFromKey(g.t1[0]), nameX, y + 38); ctx.fillText(getPlayerNameFromKey(g.t1[1]), nameX, y + 72);
-    ctx.fillStyle = '#9CA79A'; ctx.font = '500 18px "Noto Sans KR", sans-serif'; ctx.fillText('팀 A', nameX, y + 100);
+    ctx.font = 'bold 20px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.fillText(globalIdx + 1, cx, cy + 7); ctx.textAlign = 'left';
+
+    /* 선수 이름 */
+    const nameX = PAD + (courtLabel ? 80 : 28);
+    ctx.fillStyle = aColor || '#172018'; ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
+    ctx.fillText(getPlayerNameFromKey(g.t1[0]), nameX, y + 40);
+    ctx.fillText(getPlayerNameFromKey(g.t1[1]), nameX, y + 74);
+    ctx.fillStyle = '#9CA79A'; ctx.font = '500 17px "Noto Sans KR", sans-serif';
+    ctx.fillText('팀 A', nameX, y + 100);
+
+    /* VS + 스코어 */
     const midX = W / 2;
-    ctx.fillStyle = '#9CA79A'; ctx.font = 'bold 18px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('VS', midX, y + 38);
-    const s1 = g.s1 !== '' ? g.s1 : '0', s2 = g.s2 !== '' ? g.s2 : '0';
-    const scoreY = y + 58;
+    ctx.fillStyle = '#9CA79A'; ctx.font = 'bold 18px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.fillText('VS', midX, y + 40);
+    const s1 = g.s1 !== '' ? g.s1 : '-', s2 = g.s2 !== '' ? g.s2 : '-';
+    const scoreY = y + 62;
     ctx.fillStyle = '#F3F6F0'; roundRect(ctx, midX - 76, scoreY - 22, 58, 36, 8); ctx.fill();
     ctx.fillStyle = '#172018'; ctx.font = 'bold 26px Inter, sans-serif'; ctx.fillText(s1, midX - 47, scoreY + 8);
     ctx.fillStyle = '#9CA79A'; ctx.font = 'bold 26px Inter, sans-serif'; ctx.fillText(':', midX, scoreY + 8);
     ctx.fillStyle = '#F3F6F0'; roundRect(ctx, midX + 18, scoreY - 22, 58, 36, 8); ctx.fill();
     ctx.fillStyle = '#172018'; ctx.font = 'bold 26px Inter, sans-serif'; ctx.fillText(s2, midX + 47, scoreY + 8);
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#172018'; ctx.font = 'bold 26px "Noto Sans KR", sans-serif'; ctx.textAlign = 'right';
-    ctx.fillText(getPlayerNameFromKey(g.t2[0]), W - PADDING, y + 38); ctx.fillText(getPlayerNameFromKey(g.t2[1]), W - PADDING, y + 72);
-    ctx.fillStyle = '#9CA79A'; ctx.font = '500 18px "Noto Sans KR", sans-serif'; ctx.fillText('팀 B', W - PADDING, y + 100);
+
+    /* 오른쪽 팀 */
+    ctx.fillStyle = bColor || '#172018'; ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(getPlayerNameFromKey(g.t2[0]), W - PAD, y + 40);
+    ctx.fillText(getPlayerNameFromKey(g.t2[1]), W - PAD, y + 74);
+    ctx.fillStyle = '#9CA79A'; ctx.font = '500 17px "Noto Sans KR", sans-serif';
+    ctx.fillText('팀 B', W - PAD, y + 100);
     ctx.textAlign = 'left';
-  });
-  ctx.fillStyle = '#E1E8DB'; ctx.fillRect(0, HEADER_H + arr.length * GAME_H, W, 1);
-  ctx.fillStyle = '#F2F4EF'; ctx.fillRect(0, HEADER_H + arr.length * GAME_H + 1, W, FOOTER_H - 1);
-  ctx.fillStyle = '#9CA79A'; ctx.font = '500 20px Inter, sans-serif'; ctx.textAlign = 'right';
-  ctx.fillText('Tennis Match Maker', W - PADDING, HEADER_H + arr.length * GAME_H + 38);
+  }
+
+  /* ── 라운드 모드 vs 단순 목록 모드 ── */
+  let curY = HEADER_H;
+
+  if (useRounds) {
+    rounds.forEach((round, ri) => {
+      /* 라운드 헤더 바 */
+      ctx.fillStyle = '#F3F6F0'; ctx.fillRect(0, curY, W, ROUND_H);
+      ctx.fillStyle = '#E1E8DB'; ctx.fillRect(0, curY + ROUND_H - 1, W, 1);
+      ctx.fillStyle = '#0A4A30'; ctx.font = 'bold 15px Inter, sans-serif';
+      ctx.fillText(`ROUND ${ri + 1}`, PAD, curY + 22);
+      /* 게임 수 표시 */
+      ctx.fillStyle = '#9CA79A'; ctx.font = '500 13px Inter, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${round.length}코트`, W - PAD, curY + 22);
+      ctx.textAlign = 'left';
+      curY += ROUND_H;
+
+      round.forEach((g, ci) => {
+        const globalIdx = arr.indexOf(g);
+        drawGame(g, globalIdx, curY, `C${ci + 1}`);
+        curY += GAME_H;
+      });
+    });
+  } else {
+    arr.forEach((g, i) => {
+      drawGame(g, i, curY, null);
+      curY += GAME_H;
+    });
+  }
+
+  /* ── 푸터 ── */
+  ctx.fillStyle = '#E1E8DB'; ctx.fillRect(0, curY, W, 1);
+  ctx.fillStyle = '#F2F4EF'; ctx.fillRect(0, curY + 1, W, FOOTER_H - 1);
+  ctx.fillStyle = '#9CA79A'; ctx.font = '500 20px Inter, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('Tennis Match Maker', W - PAD, curY + 40);
   ctx.textAlign = 'left';
+
   return canvas;
 }
 
