@@ -483,7 +483,7 @@
         <div class="setting-row">
           <div>
             <div class="setting-label">게임 수</div>
-            <div class="setting-desc">최대 가능 수 내에서 균형 있게 생성</div>
+            <div class="setting-desc">지정한 게임 수만큼 생성 · 부족 시 반복 포함</div>
           </div>
           <input type="number" inputmode="numeric" id="gameCount" value="10" min="1" max="100">
         </div>
@@ -739,7 +739,7 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
     html += '<div class="round-block">';
     html += '<div class="round-label">라운드 ' + (ri + 1) + '</div>';
     round.forEach(function(g, ci) {
-      const idx = games.indexOf(g);
+      const idx = ri * courtCount + ci;
       const aCol = aColor ? ' style="color:' + aColor + '"' : '';
       const bCol = bColor ? ' style="color:' + bColor + '"' : '';
 
@@ -1657,7 +1657,7 @@ async function captureGameImage(containerId, mode) {
       curY += ROUND_H;
 
       round.forEach((g, ci) => {
-        const globalIdx = arr.indexOf(g);
+        const globalIdx = ri * courtCount + ci;
         drawGame(g, globalIdx, curY, `C${ci + 1}`);
         curY += GAME_H;
       });
