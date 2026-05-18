@@ -719,6 +719,21 @@ function sliceByCourt(games, courtCount) {
   return rounds;
 }
 
+
+function groupByRoundMeta(games, courtCount) {
+  const hasMeta = games.some(g => typeof g.roundIdx === 'number');
+  if (!hasMeta) return sliceByCourt(games, courtCount);
+  const map = new Map();
+  games.forEach(g => {
+    const key = g.roundIdx;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(g);
+  });
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, round]) => round.sort((a, b) => (a.courtIdx || 0) - (b.courtIdx || 0)));
+}
+
 function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bColor) {
   const el = document.getElementById(containerId);
   if (!games.length) {
@@ -731,15 +746,15 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
     return;
   }
 
-  /* 코트2+: 생성 결과를 courtCount개씩 그대로 출력 */
-  const rounds = sliceByCourt(games, courtCount);
+  /* 코트2+: 생성 단계에서 확정한 roundIdx/courtIdx 그대로 출력 */
+  const rounds = groupByRoundMeta(games, courtCount);
 
   let html = '';
   rounds.forEach(function(round, ri) {
     html += '<div class="round-block">';
     html += '<div class="round-label">라운드 ' + (ri + 1) + '</div>';
     round.forEach(function(g, ci) {
-      const idx = ri * courtCount + ci;
+      const idx = typeof g.gameIdx === 'number' ? g.gameIdx : (ri * courtCount + ci);
       const aCol = aColor ? ' style="color:' + aColor + '"' : '';
       const bCol = bColor ? ' style="color:' + bColor + '"' : '';
 
@@ -1091,26 +1106,32 @@ function shuffle(arr) {
   return arr;
 }
 
-function buildMatches(playerList, count) {
-  const combos = getCombos(playerList, 2), base = [];
+function buildUniqueMatches(playerList) {
+  const combos = getCombos(playerList, 2), matches = [];
   for (let i = 0; i < combos.length; i++) {
     for (let j = i + 1; j < combos.length; j++) {
       if (!combos[i].some(p => combos[j].includes(p))) {
-        base.push({ t1: combos[i], t2: combos[j], s1: '', s2: '', done: false });
+        matches.push({ t1: [...combos[i]], t2: [...combos[j]], s1: '', s2: '', done: false });
       }
     }
   }
-  if (!base.length) return [];
-  const needed = count || base.length;
-  const matches = [];
-  while (matches.length < needed) {
-    shuffle(base).forEach(m => {
-      if (matches.length < needed) {
-        matches.push({ t1: [...m.t1], t2: [...m.t2], s1: '', s2: '', done: false });
-      }
+  return matches;
+}
+
+function expandMatchPool(baseMatches, count) {
+  if (!baseMatches.length) return [];
+  const needed = count || baseMatches.length;
+  const pool = [];
+  while (pool.length < needed) {
+    shuffle([...baseMatches]).forEach(m => {
+      if (pool.length < needed) pool.push(cloneGame(m));
     });
   }
-  return matches;
+  return pool;
+}
+
+function buildMatches(playerList, count) {
+  return expandMatchPool(buildUniqueMatches(playerList), count);
 }
 
 function countUniqueMatches(playerList) {
@@ -1241,6 +1262,26 @@ function smartPick(matches, playerList, count, fixedPairsExempt = []) {
 }
 
 /* 코트2+ 전용: 라운드 단위로 묶어 선택 */
+function _commitGame(g, selected, roundIdx, courtIdx, playCount, lastRound, partnerCount, matchCount) {
+  const committed = cloneGame(g);
+  committed.roundIdx = roundIdx;
+  committed.courtIdx = courtIdx;
+  committed.gameIdx = selected.length;
+  selected.push(committed);
+
+  [...committed.t1, ...committed.t2].forEach(p => {
+    playCount[p]++;
+    lastRound[p] = roundIdx;
+  });
+  [committed.t1, committed.t2].forEach(team => {
+    const [a, b] = team;
+    partnerCount[a][b] = (partnerCount[a][b] || 0) + 1;
+    partnerCount[b][a] = (partnerCount[b][a] || 0) + 1;
+  });
+  matchCount[_matchKey(committed)] = (matchCount[_matchKey(committed)] || 0) + 1;
+}
+
+/* 코트2+ 전용: 라운드/코트 정보를 확정해서 반환 */
 function smartPickByRounds(matches, playerList, count, courtCount, fixedPairsExempt = []) {
   if (!matches.length) return [];
   const selected = [];
@@ -1250,41 +1291,24 @@ function smartPickByRounds(matches, playerList, count, courtCount, fixedPairsExe
   let pool = shuffle(matches.map(cloneGame));
   let roundIdx = 0, safety = 0;
 
-  while (selected.length < count && safety < count * 20) {
+  while (selected.length < count && safety < count * 30) {
     safety++;
     const slots = Math.min(courtCount, count - selected.length);
-    const pickedIdxs = _pickBestRound(pool, slots, roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt);
+    let pickedIdxs = _pickBestRound(pool, slots, roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt);
 
-    if (!pickedIdxs.length) {
-      /* 고유 게임 소진 → 풀 재생성 후 재시도 (게임 수를 채워야 하는 경우) */
+    if (pickedIdxs.length < slots) {
+      // 현재 풀에서 라운드를 못 채우면 가능한 전체 후보를 다시 열어 재시도한다.
       pool = shuffle(matches.map(cloneGame));
-      const retry = _pickBestRound(pool, slots, roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt);
-      if (!retry.length) break;
-      retry.sort((a, b) => b - a).forEach(idx => {
-        const g = pool.splice(idx, 1)[0];
-        selected.push(g);
-        [...g.t1, ...g.t2].forEach(p => { playCount[p]++; lastRound[p] = roundIdx; });
-        [g.t1, g.t2].forEach(team => {
-          const [a, b] = team;
-          partnerCount[a][b] = (partnerCount[a][b] || 0) + 1;
-          partnerCount[b][a] = (partnerCount[b][a] || 0) + 1;
-        });
-        matchCount[_matchKey(g)] = (matchCount[_matchKey(g)] || 0) + 1;
-      });
-      roundIdx++;
-      continue;
+      pickedIdxs = _pickBestRound(pool, slots, roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt);
     }
 
-    pickedIdxs.sort((a, b) => b - a).forEach(idx => {
-      const g = pool.splice(idx, 1)[0];
-      selected.push(g);
-      [...g.t1, ...g.t2].forEach(p => { playCount[p]++; lastRound[p] = roundIdx; });
-      [g.t1, g.t2].forEach(team => {
-        const [a, b] = team;
-        partnerCount[a][b] = (partnerCount[a][b] || 0) + 1;
-        partnerCount[b][a] = (partnerCount[b][a] || 0) + 1;
-      });
-      matchCount[_matchKey(g)] = (matchCount[_matchKey(g)] || 0) + 1;
+    if (!pickedIdxs.length) break;
+
+    const pickedGames = pickedIdxs.map(idx => pool[idx]);
+    pickedIdxs.sort((a, b) => b - a).forEach(idx => pool.splice(idx, 1));
+
+    pickedGames.forEach((g, courtIdx) => {
+      _commitGame(g, selected, roundIdx, courtIdx, playCount, lastRound, partnerCount, matchCount);
     });
     roundIdx++;
   }
@@ -1298,10 +1322,10 @@ function generateBasic() {
   const count = parseInt(document.getElementById('gameCount').value) || 10;
   const courts = parseInt(document.getElementById('courtCount').value) || 1;
   const uniqueCount = countUniqueMatches(players);
-  const basicPool = buildMatches(players, count);
+  const uniquePool = buildUniqueMatches(players);
   basicGames = courts > 1
-    ? smartPickByRounds(basicPool, players, count, courts)
-    : smartPick(basicPool, players, count);
+    ? smartPickByRounds(uniquePool, players, count, courts)
+    : smartPick(expandMatchPool(uniquePool, count), players, count);
   renderGamesWithCourt('basicGames', basicGames, 'basic', courts);
   document.getElementById('basicResult').style.display = 'block';
   document.getElementById('basicBadge').textContent = basicGames.length + '게임' + (basicGames.length > uniqueCount ? ' (반복 포함)' : '');
@@ -1389,7 +1413,7 @@ function generateFixed() {
   const fixedCourts = parseInt(document.getElementById('fixedCourtCount').value) || 1;
   fixedGames = fixedCourts > 1
     ? smartPickByRounds(matches, players, count, fixedCourts, fixedPairs)
-    : smartPick(shuffle(matches), players, count, fixedPairs);
+    : smartPick(expandMatchPool(matches, count), players, count, fixedPairs);
   renderGamesWithCourt('fixedGames', fixedGames, 'fixed', fixedCourts);
   document.getElementById('fixedResult').style.display = 'block';
   document.getElementById('fixedBadge').textContent = fixedGames.length + '게임';
@@ -1441,7 +1465,7 @@ function generateAB() {
   const abCourts = parseInt(document.getElementById('abCourtCount').value) || 1;
   abGames = abCourts > 1
     ? smartPickByRounds(matches, allPlayers, count, abCourts)
-    : smartPick(shuffle(matches), allPlayers, count);
+    : smartPick(expandMatchPool(matches, count), allPlayers, count);
   renderGamesWithCourt('abGames', abGames, 'ab', abCourts, '#1677D2', '#0F6B45');
   document.getElementById('abResult').style.display = 'block';
   document.getElementById('abBadge').textContent = abGames.length + '게임';
@@ -1552,8 +1576,8 @@ async function captureGameImage(containerId, mode) {
 
   const W = 720, PAD = 40, HEADER_H = 140, GAME_H = 116, ROUND_H = 34, FOOTER_H = 70;
 
-  /* 라운드 묶기: 코트2+ → sliceByCourt, 코트1 → groupByCourt */
-  const rounds = courtCount > 1 ? sliceByCourt(arr, courtCount) : groupByCourt(arr, 1);
+  /* 라운드 묶기: 코트2+ → roundIdx/courtIdx 메타데이터, 코트1 → 단순 목록 */
+  const rounds = courtCount > 1 ? groupByRoundMeta(arr, courtCount) : groupByCourt(arr, 1);
   const useRounds = courtCount > 1;
 
   /* 총 높이 계산 */
@@ -1657,7 +1681,7 @@ async function captureGameImage(containerId, mode) {
       curY += ROUND_H;
 
       round.forEach((g, ci) => {
-        const globalIdx = ri * courtCount + ci;
+        const globalIdx = typeof g.gameIdx === 'number' ? g.gameIdx : (ri * courtCount + ci);
         drawGame(g, globalIdx, curY, `C${ci + 1}`);
         curY += GAME_H;
       });
