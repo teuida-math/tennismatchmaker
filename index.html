@@ -47,7 +47,6 @@
   button, input, select { font: inherit; }
   button { -webkit-tap-highlight-color: transparent; }
 
-  /* ── 헤더: 딥그린 반전 ── */
   header {
     position: sticky;
     top: 0;
@@ -100,7 +99,6 @@
 
   main { max-width: 680px; margin: 0 auto; padding: 20px 16px 72px; }
 
-  /* ── Hero: 딥그린 배경, 라임 포인트 ── */
   .hero {
     border-radius: var(--radius);
     padding: 22px 24px 20px;
@@ -314,25 +312,13 @@
   .pos { color: var(--win); } .neg { color: var(--danger); } .zero { color: var(--text3); }
   .empty-hint { padding: 10px 8px; font-size: .8rem; color: var(--text3); }
 
-  /* 라운드 블록 */
-.court-badge {
-    position: absolute;
-    top: 2px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: .62rem;
-    font-weight: 900;
-    color: var(--green);
-    background: var(--accent);
-    padding: 2px 6px;
-    border-radius: 999px;
-    letter-spacing: .03em;
-  }
+  /* ── 라운드 블록 ── */
   .round-block {
     border-bottom: 2px solid var(--border);
     margin-bottom: 0;
   }
   .round-block:last-child { border-bottom: 0; }
+
   .round-label {
     padding: 8px 18px 6px;
     font-size: .72rem;
@@ -343,22 +329,29 @@
     background: var(--surface2);
     border-bottom: 1px solid var(--border);
   }
+
+  /* ── 핵심 수정: round-game position:relative 명시 ── */
   .round-game {
     border-bottom: 1px solid var(--border);
-    position: relative;
+    position: relative; /* court-badge absolute 기준점 */
   }
   .round-game:last-child { border-bottom: 0; }
-  .court-label {
+
+  /* ── 핵심 수정: court-badge 위치 좌상단으로 변경 ── */
+  .court-badge {
     position: absolute;
     top: 8px;
     left: 18px;
-    font-size: .66rem;
-    font-weight: 800;
-    color: var(--accent-strong);
-    letter-spacing: .06em;
-    text-transform: uppercase;
+    transform: none; /* translateX(-50%) 제거 */
+    font-size: .62rem;
+    font-weight: 900;
+    color: var(--green);
+    background: var(--accent);
+    padding: 2px 6px;
+    border-radius: 999px;
+    letter-spacing: .03em;
+    pointer-events: none;
   }
-  .round-game .game-num-wrap { margin-top: 16px; }
 
   /* 공유 버튼 */
   .share-bar {
@@ -420,7 +413,6 @@
     .hero { padding: 20px 18px 18px; }
     .hero h2 { font-size: 1.3rem; max-width: 76%; }
     .section-header, .section-body { padding-left: 15px; padding-right: 15px; }
-
     .member-chip { min-height: 40px; padding: 8px 6px; }
     .game-card { grid-template-columns: 28px 1fr auto 1fr; padding: 13px 13px; gap: 7px; }
     .team-player { font-size: .81rem; }
@@ -437,7 +429,6 @@
   <div class="header-top">
     <div class="title-wrap">
       <h1>Tennis Match Maker</h1>
-      
     </div>
   </div>
   <nav class="tabs">
@@ -606,7 +597,6 @@
   </div>
 
   <div id="tab-members" class="panel">
-    <!-- 클럽 추가 -->
     <div class="section">
       <div class="section-header">
         <span class="section-title">클럽</span>
@@ -617,7 +607,6 @@
       </div>
       <div id="clubList" class="section-body" style="padding:10px 18px"></div>
     </div>
-    <!-- 선택된 클럽 멤버 관리 -->
     <div id="clubMemberSection" class="section" style="display:none">
       <div class="section-header">
         <span class="section-title" id="clubMemberTitle">멤버</span>
@@ -636,21 +625,17 @@
 </main>
 
 <script>
-// 데이터 구조
-// clubs: { clubName: [member, ...], ... }
 let clubs = {};
-let activeClub = null; // 멤버 관리에서 선택된 클럽
+let activeClub = null;
 let todaySelected = new Set();
 let basicGames = [], fixedGames = [], abGames = [];
 let fixedPairs = [], teamA = [], teamB = [];
 
-// 저장/불러오기
 function saveClubs() {
   try { localStorage.setItem('tennis_clubs', JSON.stringify(clubs)); } catch(e) {}
 }
 function loadClubs() {
   try {
-    // 기존 roster 마이그레이션
     const oldRoster = localStorage.getItem('tennis_roster');
     const newClubs = localStorage.getItem('tennis_clubs');
     if (newClubs) {
@@ -666,13 +651,10 @@ function loadClubs() {
   } catch(e) {}
 }
 
-// roster 호환: 전체 멤버 flat 배열
 function getRoster() {
   return Object.values(clubs).flat();
 }
 
-// 내부 선택/대진표용 고유키: 같은 이름이어도 클럽별로 따로 선택되게 함
-// 화면에는 이름만 보여주고, 내부 계산은 clubName::memberName 형태로 구분합니다.
 const PLAYER_KEY_SEP = '::';
 function makePlayerKey(clubName, name) {
   return String(clubName) + PLAYER_KEY_SEP + String(name);
@@ -692,26 +674,22 @@ function getAllPlayerKeys() {
 function removeSelectedByClubAndName(clubName, name) {
   const key = makePlayerKey(clubName, name);
   todaySelected.delete(key);
-  // 이전 버전에서 이름만 저장되어 있던 선택값이 남아 있을 경우도 정리
   todaySelected.delete(name);
 }
 
 loadClubs();
-// 기존 멤버 가나다순 정렬
 Object.keys(clubs).forEach(c => {
   clubs[c].sort((a, b) => a.localeCompare(b, 'ko'));
 });
-// activeClub 초기값
 if (Object.keys(clubs).length) activeClub = Object.keys(clubs)[0];
 renderClubList();
 renderMemberChips();
 renderMemberManageList();
 renderABTeams();
 
-
-// 코트별 라운드 묶기
+/* ── 코트별 라운드 묶기 ── */
 function groupByCourt(games, courtCount) {
-  if (courtCount <= 1) return games.map(g => [g]); // 코트1은 그냥 1게임씩
+  if (courtCount <= 1) return games.map(g => [g]);
   const remaining = [...games];
   const rounds = [];
   while (remaining.length > 0) {
@@ -728,7 +706,6 @@ function groupByCourt(games, courtCount) {
       }
     }
     if (round.length === 0) {
-      // 배정 불가한 게임은 1개씩 처리
       rounds.push([nextRemaining.shift()]);
       remaining.length = 0;
       remaining.push(...nextRemaining);
@@ -741,10 +718,13 @@ function groupByCourt(games, courtCount) {
   return rounds;
 }
 
-// 라운드형 렌더링
+/* ── 핵심 수정: court badge 렌더링 ── */
 function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bColor) {
   const el = document.getElementById(containerId);
-  if (!games.length) { el.innerHTML = '<div class="notice"><div class="notice-text">게임이 없습니다</div></div>'; return; }
+  if (!games.length) {
+    el.innerHTML = '<div class="notice"><div class="notice-text">게임이 없습니다</div></div>';
+    return;
+  }
 
   const rounds = groupByCourt(games, courtCount);
   const useSingleCourt = courtCount <= 1 || rounds.every(function(r) { return r.length === 1; });
@@ -762,29 +742,42 @@ function renderGamesWithCourt(containerId, games, mode, courtCount, aColor, bCol
       const idx = games.indexOf(g);
       const aCol = aColor ? ' style="color:' + aColor + '"' : '';
       const bCol = bColor ? ' style="color:' + bColor + '"' : '';
+
       html += '<div class="game-card round-game ' + (g.done ? 'done' : '') + '" id="' + mode + '-g-' + idx + '">';
+
+      /* ── court badge: 좌상단 절대위치, game-num-wrap margin-top 제거 ── */
       html += '<div class="court-badge">C' + (ci + 1) + '</div>';
-      html += '<div class="game-num-wrap"><div class="game-num">' + (idx + 1) + '</div><div class="done-dot"></div></div>';
+      html += '<div class="game-num-wrap" style="margin-top:0">';
+      html += '<div class="game-num">' + (idx + 1) + '</div>';
+      html += '<div class="done-dot"></div>';
+      html += '</div>';
+
       html += '<div class="team-col">';
       html += '<div class="team-player"' + aCol + '>' + escapeHtml(getPlayerNameFromKey(g.t1[0])) + '</div>';
       html += '<div class="team-player"' + aCol + '>' + escapeHtml(getPlayerNameFromKey(g.t1[1])) + '</div>';
       html += '</div>';
+
       html += '<div class="vs-col"><div class="vs-label">VS</div><div class="score-row">';
-      html += '<input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="' + g.s1 + '" placeholder="0" data-mode="' + mode + '" data-idx="' + idx + '" data-team="1" oninput="updateScore(this.dataset.mode,+this.dataset.idx,+this.dataset.team,this.value)">';
+      html += '<input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="' + g.s1 + '" placeholder="0"'
+            + ' data-mode="' + mode + '" data-idx="' + idx + '" data-team="1"'
+            + ' oninput="updateScore(this.dataset.mode,+this.dataset.idx,+this.dataset.team,this.value)">';
       html += '<span class="score-sep">:</span>';
-      html += '<input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="' + g.s2 + '" placeholder="0" data-mode="' + mode + '" data-idx="' + idx + '" data-team="2" oninput="updateScore(this.dataset.mode,+this.dataset.idx,+this.dataset.team,this.value)">';
+      html += '<input type="number" inputmode="numeric" class="score-input" min="0" max="99" value="' + g.s2 + '" placeholder="0"'
+            + ' data-mode="' + mode + '" data-idx="' + idx + '" data-team="2"'
+            + ' oninput="updateScore(this.dataset.mode,+this.dataset.idx,+this.dataset.team,this.value)">';
       html += '</div></div>';
+
       html += '<div class="team-col right">';
       html += '<div class="team-player"' + bCol + '>' + escapeHtml(getPlayerNameFromKey(g.t2[0])) + '</div>';
       html += '<div class="team-player"' + bCol + '>' + escapeHtml(getPlayerNameFromKey(g.t2[1])) + '</div>';
       html += '</div>';
-      html += '</div>';
+
+      html += '</div>'; /* game-card 닫기 */
     });
-    html += '</div>';
+    html += '</div>'; /* round-block 닫기 */
   });
   el.innerHTML = html;
 }
-
 
 const heroMap = {
   today:    { title: "Today's Players",  desc: "참가할 멤버를 선택하세요" },
@@ -794,6 +787,7 @@ const heroMap = {
   standings:{ title: "Standings",        desc: "점수를 입력하면 자동으로 집계됩니다" },
   members:  { title: "Club Members",     desc: "클럽 멤버를 등록하고 관리하세요" },
 };
+
 function switchTab(tab, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -807,14 +801,17 @@ function switchTab(tab, btn) {
   if (tab === 'fixed') updateFixedSelects();
   if (tab === 'ab') updateABSelects();
   if (tab === 'standings') renderStandings();
-  // 랜덤 탭 진입 시 참가자 요약 표시
   if (tab === 'basic') {
     const players = getTodayPlayers();
     const summary = document.getElementById('basicPlayerSummary');
     const list = document.getElementById('basicPlayerList');
     if (players.length) {
       summary.style.display = 'block';
-      list.innerHTML = '<span style="color:var(--green);font-weight:900">' + players.length + '명 참가</span><div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:5px">' + players.map(p => '<span style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px 9px;font-size:.78rem;font-weight:700;white-space:nowrap">' + escapeHtml(getPlayerNameFromKey(p)) + '</span>').join('') + '</div>';
+      list.innerHTML = '<span style="color:var(--green);font-weight:900">' + players.length + '명 참가</span>'
+        + '<div style="margin-top:7px;display:flex;flex-wrap:wrap;gap:5px">'
+        + players.map(p => '<span style="display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px 9px;font-size:.78rem;font-weight:700;white-space:nowrap">'
+            + escapeHtml(getPlayerNameFromKey(p)) + '</span>').join('')
+        + '</div>';
     } else {
       summary.style.display = 'block';
       list.innerHTML = '⚠️ <a href="#" onclick="switchTabByName(\'today\');return false;" style="color:var(--green);font-weight:800">참가자 탭</a>에서 참가자를 먼저 선택해주세요';
@@ -829,7 +826,7 @@ function switchTabByName(tab) {
   if (idx >= 0) switchTab(tab, btns[idx]);
 }
 
-// 클럽 관리
+/* ── 클럽 관리 ── */
 function addClub() {
   const inp = document.getElementById('clubNameInput');
   const name = inp.value.trim();
@@ -847,7 +844,6 @@ function addClub() {
 function removeClub(el) {
   const name = el.dataset.club;
   if (!confirm(name + ' 클럽을 삭제하시겠습니까?')) return;
-  // 해당 클럽 멤버 선택 해제
   (clubs[name] || []).forEach(m => removeSelectedByClubAndName(name, m));
   delete clubs[name];
   const keys = Object.keys(clubs);
@@ -875,7 +871,6 @@ function renderClubList() {
     document.getElementById('clubMemberSection').style.display = 'none';
     return;
   }
-
   let html = '';
   keys.forEach(function(name) {
     const isActive = name === activeClub;
@@ -885,7 +880,6 @@ function renderClubList() {
     const style = isActive
       ? 'background:var(--green-bg);border-radius:10px;padding:10px 12px;margin:0 -4px 4px'
       : 'margin-bottom:2px';
-
     html += '<div class="pair-item" style="' + style + '">';
     html += '<div style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer" onclick="selectClub(this)" data-club="' + safeAttr + '">';
     html += '<span id="club-label-' + safeAttr + '" style="font-weight:700;font-size:.9rem">' + safeHtml + '</span>';
@@ -897,10 +891,10 @@ function renderClubList() {
     html += '</div></div>';
   });
   el.innerHTML = html;
-
   document.getElementById('clubMemberSection').style.display = activeClub ? 'block' : 'none';
   if (activeClub) document.getElementById('clubMemberTitle').textContent = activeClub + ' 멤버';
 }
+
 function startEditClub(el) {
   const name = el.dataset.club;
   const label = document.getElementById('club-label-' + name);
@@ -922,11 +916,8 @@ function startEditClub(el) {
 function confirmEditClub(oldName, newName) {
   if (!newName || newName === oldName) { renderClubList(); return; }
   if (clubs[newName]) { alert('이미 있는 클럽 이름입니다'); renderClubList(); return; }
-  // 키 이름 변경 (순서 유지)
   const newClubs = {};
-  Object.keys(clubs).forEach(k => {
-    newClubs[k === oldName ? newName : k] = clubs[k];
-  });
+  Object.keys(clubs).forEach(k => { newClubs[k === oldName ? newName : k] = clubs[k]; });
   clubs = newClubs;
   if (activeClub === oldName) activeClub = newName;
   saveClubs();
@@ -934,7 +925,7 @@ function confirmEditClub(oldName, newName) {
   renderMemberChips();
 }
 
-// 멤버 관리
+/* ── 멤버 관리 ── */
 function addMember() {
   if (!activeClub) { alert('클럽을 먼저 선택해주세요'); return; }
   const inp = document.getElementById('memberInput');
@@ -1016,18 +1007,15 @@ function renderMemberChips() {
   const container = document.getElementById('memberChips');
   const countEl = document.getElementById('selectedCount');
   const roster = getRoster();
-
   if (!roster.length) {
     notice.style.display = 'block';
     container.style.display = 'none';
     countEl.style.display = 'none';
     return;
   }
-
   notice.style.display = 'none';
   container.style.display = 'block';
   countEl.style.display = 'block';
-
   let html = '';
   Object.keys(clubs).forEach(clubName => {
     const members = clubs[clubName] || [];
@@ -1057,9 +1045,9 @@ function renderMemberChips() {
     html += '</div></div>';
   });
   container.innerHTML = html;
-
   updateSelectedCount();
 }
+
 function togglePlayer(key) {
   if (todaySelected.has(key)) todaySelected.delete(key);
   else todaySelected.add(key);
@@ -1077,7 +1065,6 @@ function deselectClubMembers(clubName) {
 }
 
 function updateSelectedCount() {
-  // 혹시 이전 버전의 이름-only 선택값이 섞여 있어도 현재 멤버 키만 카운트
   const validKeys = new Set(getAllPlayerKeys());
   const count = [...todaySelected].filter(key => validKeys.has(key)).length;
   document.getElementById('selectedCount').innerHTML = `<span>${count}명</span> 선택됨${count < 4 ? ' &nbsp;·&nbsp; 최소 4명 필요' : ''}`;
@@ -1115,9 +1102,7 @@ function buildMatches(playerList, count) {
       }
     }
   }
-
   if (!base.length) return [];
-
   const needed = count || base.length;
   const matches = [];
   while (matches.length < needed) {
@@ -1141,47 +1126,110 @@ function countUniqueMatches(playerList) {
   return total;
 }
 
+/* ── 대진표 생성 알고리즘 ─────────────────────────────────────
+   코트1: 연속출전 방지 + 균등 출전 + 페어 중복 최소화 (단일 선택)
+   코트2+: 라운드 단위로 묶어 선택 — 코트를 꽉 채우는 조합을 전수 비교
+           출전 균등 / 페어 중복 / 매치 반복 세 가지 페널티를 합산해 최선 선택
+──────────────────────────────────────────────────────────────── */
+function cloneGame(g) {
+  return { t1: [...g.t1], t2: [...g.t2], s1: '', s2: '', done: false };
+}
+
+function _samePair(a, b, fixedPairsExempt) {
+  return fixedPairsExempt.some(fp =>
+    (fp[0] === a && fp[1] === b) || (fp[0] === b && fp[1] === a));
+}
+
+function _matchKey(g) {
+  const t1 = [...g.t1].sort().join('+');
+  const t2 = [...g.t2].sort().join('+');
+  return [t1, t2].sort().join(' vs ');
+}
+
+function _scoreGame(g, roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt) {
+  const involved = [...g.t1, ...g.t2];
+  const balP = involved.reduce((s, p) => s + playCount[p] * 8, 0);
+  const restP = involved.reduce((s, p) => {
+    const gap = roundIdx - lastRound[p];
+    if (gap <= 0) return s + 1000;
+    if (gap === 1) return s + 90;
+    if (gap === 2) return s + 14;
+    return s;
+  }, 0);
+  const partP = [g.t1, g.t2].reduce((s, team) => {
+    const [a, b] = team;
+    if (_samePair(a, b, fixedPairsExempt)) return s;
+    return s + (partnerCount[a][b] || 0) * 140;
+  }, 0);
+  const repP = (matchCount[_matchKey(g)] || 0) * 260;
+  return balP + restP + partP + repP + Math.random() * 0.01;
+}
+
+function _pickBestRound(matches, slots, roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt) {
+  if (!matches.length || slots <= 0) return [];
+
+  /* 코트 2: 전체 후보쌍을 직접 비교해 라운드를 꽉 채울 수 있는 최선 조합 선택 */
+  if (slots === 2) {
+    let bestPair = null, bestScore = Infinity;
+    for (let i = 0; i < matches.length; i++) {
+      const used = new Set([...matches[i].t1, ...matches[i].t2]);
+      for (let j = i + 1; j < matches.length; j++) {
+        if ([...matches[j].t1, ...matches[j].t2].some(p => used.has(p))) continue;
+        const score = _scoreGame(matches[i], roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt)
+                    + _scoreGame(matches[j], roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt);
+        if (score < bestScore) { bestScore = score; bestPair = [i, j]; }
+      }
+    }
+    if (bestPair) return bestPair;
+  }
+
+  /* 코트 3 이상 또는 코트 2에서 꽉 채우기 불가: 그리디로 최대한 채우기 */
+  const chosen = [], used = new Set();
+  while (chosen.length < slots) {
+    let bestIdx = -1, bestScore = Infinity;
+    for (let i = 0; i < matches.length; i++) {
+      if (chosen.includes(i)) continue;
+      if ([...matches[i].t1, ...matches[i].t2].some(p => used.has(p))) continue;
+      const s = _scoreGame(matches[i], roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt);
+      if (s < bestScore) { bestScore = s; bestIdx = i; }
+    }
+    if (bestIdx === -1) break;
+    chosen.push(bestIdx);
+    [...matches[bestIdx].t1, ...matches[bestIdx].t2].forEach(p => used.add(p));
+  }
+  return chosen;
+}
+
+/* 코트1 전용: 연속출전 방지 + 균등 출전 + 페어 중복 최소화 */
 function smartPick(matches, playerList, count, fixedPairsExempt = []) {
   const max = Math.min(count, matches.length);
   const sel = [], rem = [...matches];
   const playCount = {}, lastPlayed = {}, partnerCount = {};
   playerList.forEach(p => { playCount[p] = 0; lastPlayed[p] = -99; partnerCount[p] = {}; });
-
   for (let i = 0; i < max; i++) {
     let best = null, bestScore = Infinity, bestIdx = 0;
     rem.forEach((m, j) => {
       const involved = [...m.t1, ...m.t2];
-
-      // 연속출전 페널티 (강화: 1→500, 직전직전→15)
-      const restPenalty = involved.reduce((sum, p) => {
+      const restP = involved.reduce((sum, p) => {
         const gap = i - lastPlayed[p];
         if (gap <= 0) return sum + 1000;
         if (gap === 1) return sum + 500;
         if (gap === 2) return sum + 15;
         return sum;
       }, 0);
-
-      // 출전 횟수 균등 페널티
-      const balancePenalty = involved.reduce((sum, p) => sum + playCount[p], 0);
-
-      // 파트너 중복 페널티 (고정팀 페어는 면제)
-      const partnerPenalty = [m.t1, m.t2].reduce((sum, team) => {
+      const balP = involved.reduce((sum, p) => sum + playCount[p], 0);
+      const partP = [m.t1, m.t2].reduce((sum, team) => {
         if (team.length < 2) return sum;
         const [a, b] = team;
-        const isFixed = fixedPairsExempt.some(fp =>
-          (fp[0] === a && fp[1] === b) || (fp[0] === b && fp[1] === a)
-        );
-        if (isFixed) return sum;
+        if (_samePair(a, b, fixedPairsExempt)) return sum;
         return sum + (partnerCount[a][b] || 0) * 500;
       }, 0);
-
-      const score = restPenalty + balancePenalty + partnerPenalty;
+      const score = restP + balP + partP;
       if (score < bestScore) { bestScore = score; best = m; bestIdx = j; }
     });
     if (!best) break;
     sel.push(best);
     [...best.t1, ...best.t2].forEach(p => { playCount[p]++; lastPlayed[p] = i; });
-    // 파트너 기록 업데이트
     [best.t1, best.t2].forEach(team => {
       if (team.length >= 2) {
         const [a, b] = team;
@@ -1194,13 +1242,68 @@ function smartPick(matches, playerList, count, fixedPairsExempt = []) {
   return sel;
 }
 
+/* 코트2+ 전용: 라운드 단위로 묶어 선택 */
+function smartPickByRounds(matches, playerList, count, courtCount, fixedPairsExempt = []) {
+  if (!matches.length) return [];
+  const selected = [];
+  const playCount = {}, lastRound = {}, partnerCount = {}, matchCount = {};
+  playerList.forEach(p => { playCount[p] = 0; lastRound[p] = -99; partnerCount[p] = {}; });
+
+  let pool = shuffle(matches.map(cloneGame));
+  let roundIdx = 0, safety = 0;
+
+  while (selected.length < count && safety < count * 20) {
+    safety++;
+    const slots = Math.min(courtCount, count - selected.length);
+    const pickedIdxs = _pickBestRound(pool, slots, roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt);
+
+    if (!pickedIdxs.length) {
+      /* 고유 게임 소진 → 풀 재생성 후 재시도 (게임 수를 채워야 하는 경우) */
+      pool = shuffle(matches.map(cloneGame));
+      const retry = _pickBestRound(pool, slots, roundIdx, playCount, lastRound, partnerCount, matchCount, fixedPairsExempt);
+      if (!retry.length) break;
+      retry.sort((a, b) => b - a).forEach(idx => {
+        const g = pool.splice(idx, 1)[0];
+        selected.push(g);
+        [...g.t1, ...g.t2].forEach(p => { playCount[p]++; lastRound[p] = roundIdx; });
+        [g.t1, g.t2].forEach(team => {
+          const [a, b] = team;
+          partnerCount[a][b] = (partnerCount[a][b] || 0) + 1;
+          partnerCount[b][a] = (partnerCount[b][a] || 0) + 1;
+        });
+        matchCount[_matchKey(g)] = (matchCount[_matchKey(g)] || 0) + 1;
+      });
+      roundIdx++;
+      continue;
+    }
+
+    pickedIdxs.sort((a, b) => b - a).forEach(idx => {
+      const g = pool.splice(idx, 1)[0];
+      selected.push(g);
+      [...g.t1, ...g.t2].forEach(p => { playCount[p]++; lastRound[p] = roundIdx; });
+      [g.t1, g.t2].forEach(team => {
+        const [a, b] = team;
+        partnerCount[a][b] = (partnerCount[a][b] || 0) + 1;
+        partnerCount[b][a] = (partnerCount[b][a] || 0) + 1;
+      });
+      matchCount[_matchKey(g)] = (matchCount[_matchKey(g)] || 0) + 1;
+    });
+    roundIdx++;
+  }
+
+  return selected.slice(0, count);
+}
+
 function generateBasic() {
   const players = getTodayPlayers();
   if (players.length < 4) { alert('최소 4명을 선택해주세요'); return; }
   const count = parseInt(document.getElementById('gameCount').value) || 10;
   const courts = parseInt(document.getElementById('courtCount').value) || 1;
   const uniqueCount = countUniqueMatches(players);
-  basicGames = smartPick(buildMatches(players, count), players, count);
+  const basicPool = buildMatches(players, count);
+  basicGames = courts > 1
+    ? smartPickByRounds(basicPool, players, count, courts)
+    : smartPick(basicPool, players, count);
   renderGamesWithCourt('basicGames', basicGames, 'basic', courts);
   document.getElementById('basicResult').style.display = 'block';
   document.getElementById('basicBadge').textContent = basicGames.length + '게임' + (basicGames.length > uniqueCount ? ' (반복 포함)' : '');
@@ -1285,9 +1388,10 @@ function generateFixed() {
       }
     }
   }
-  // smartPick으로 균등하게 배정 (연속출전·출전횟수·파트너중복 모두 고려)
   const fixedCourts = parseInt(document.getElementById('fixedCourtCount').value) || 1;
-  fixedGames = smartPick(shuffle(matches), players, count, fixedPairs);
+  fixedGames = fixedCourts > 1
+    ? smartPickByRounds(matches, players, count, fixedCourts, fixedPairs)
+    : smartPick(shuffle(matches), players, count, fixedPairs);
   renderGamesWithCourt('fixedGames', fixedGames, 'fixed', fixedCourts);
   document.getElementById('fixedResult').style.display = 'block';
   document.getElementById('fixedBadge').textContent = fixedGames.length + '게임';
@@ -1337,7 +1441,9 @@ function generateAB() {
   tA.forEach(a => tB.forEach(b => matches.push({ t1: a, t2: b, s1: '', s2: '', done: false })));
   const allPlayers = [...teamA, ...teamB];
   const abCourts = parseInt(document.getElementById('abCourtCount').value) || 1;
-  abGames = smartPick(shuffle(matches), allPlayers, count);
+  abGames = abCourts > 1
+    ? smartPickByRounds(matches, allPlayers, count, abCourts)
+    : smartPick(shuffle(matches), allPlayers, count);
   renderGamesWithCourt('abGames', abGames, 'ab', abCourts, '#1677D2', '#0F6B45');
   document.getElementById('abResult').style.display = 'block';
   document.getElementById('abBadge').textContent = abGames.length + '게임';
@@ -1371,12 +1477,10 @@ function renderStandings() {
     }
   });
   proc(basicGames); proc(fixedGames); proc(abGames);
-
   if (!Object.keys(stats).length) {
     document.getElementById('standingsBody').innerHTML = '<div class="notice"><div class="notice-text">점수를 입력하면<br>순위가 표시됩니다</div></div>';
     return;
   }
-
   const sorted = Object.entries(stats).sort(([, a], [, b]) => {
     const ar = a.w + a.l ? a.w / (a.w + a.l) : 0;
     const br = b.w + b.l ? b.w / (b.w + b.l) : 0;
@@ -1405,7 +1509,6 @@ function escapeHtml(value) {
 }
 function escapeAttr(value) { return escapeHtml(value); }
 
-// 토스트 알림
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -1413,183 +1516,87 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-// 대진표 텍스트 생성
 function buildShareText(mode) {
   const arr = mode === 'basic' ? basicGames : mode === 'fixed' ? fixedGames : abGames;
   const labelMap = { basic: '오늘 대진표', fixed: '고정팀 대진표', ab: 'A/B 팀전' };
   const today = new Date();
   const dateStr = `${today.getMonth()+1}/${today.getDate()}(${['일','월','화','수','목','금','토'][today.getDay()]})`;
   let lines = [`🎾 ${labelMap[mode]} — ${dateStr}`, ''];
-
   if (mode === 'ab') {
     const doneGames = arr.filter(g => g.done);
     const aWin = doneGames.filter(g => parseInt(g.s1) > parseInt(g.s2)).length;
     const bWin = doneGames.filter(g => parseInt(g.s2) > parseInt(g.s1)).length;
     if (doneGames.length) lines.push(`🏆 중간 점수  A팀 ${aWin} : ${bWin} B팀`, '');
   }
-
   arr.forEach((g, i) => {
     const num = String(i + 1).padStart(2, ' ');
     const score = (g.s1 !== '' && g.s2 !== '') ? ` (${g.s1}:${g.s2})` : '';
     const done = g.done ? ' ✓' : '';
     lines.push(`${num}게임  ${getPlayerNameFromKey(g.t1[0])}·${getPlayerNameFromKey(g.t1[1])}  vs  ${getPlayerNameFromKey(g.t2[0])}·${getPlayerNameFromKey(g.t2[1])}${score}${done}`);
   });
-
   lines.push('', '— Tennis Bracket으로 생성 —');
   return lines.join('\n');
 }
 
-// 대진표 이미지 캡처 (Canvas 직접 드로잉)
 async function captureGameImage(containerId, mode) {
   const labelMap = { basic: '랜덤 대진표', fixed: '고정 페어 대진표', ab: 'A/B 팀전' };
   const today = new Date();
   const dateStr = `${today.getMonth()+1}/${today.getDate()}(${['일','월','화','수','목','금','토'][today.getDay()]})`;
   const arr = mode === 'basic' ? basicGames : mode === 'fixed' ? fixedGames : abGames;
-
-  const W = 720; // 2x for retina
-  const PADDING = 40;
-  const HEADER_H = 140;
-  const GAME_H = 120;
-  const FOOTER_H = 70;
+  const W = 720, PADDING = 40, HEADER_H = 140, GAME_H = 120, FOOTER_H = 70;
   const totalH = HEADER_H + arr.length * GAME_H + FOOTER_H;
-
   const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = totalH;
+  canvas.width = W; canvas.height = totalH;
   const ctx = canvas.getContext('2d');
-
-  // 배경
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, W, totalH);
-
-  // 헤더 배경
-  ctx.fillStyle = '#0A4A30';
-  ctx.fillRect(0, 0, W, HEADER_H);
-
-  // 헤더 텍스트
-  ctx.fillStyle = '#C8F43D';
-  ctx.font = '700 20px Inter, sans-serif';
-  ctx.fillText('TENNIS MATCH MAKER', PADDING, 44);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 34px "Noto Sans KR", sans-serif';
-  ctx.fillText(labelMap[mode], PADDING, 86);
-
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.font = '500 22px "Noto Sans KR", sans-serif';
-  ctx.fillText(dateStr, PADDING, 114);
-
-  // 게임 목록
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, totalH);
+  ctx.fillStyle = '#0A4A30'; ctx.fillRect(0, 0, W, HEADER_H);
+  ctx.fillStyle = '#C8F43D'; ctx.font = '700 20px Inter, sans-serif'; ctx.fillText('TENNIS MATCH MAKER', PADDING, 44);
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 34px "Noto Sans KR", sans-serif'; ctx.fillText(labelMap[mode], PADDING, 86);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '500 22px "Noto Sans KR", sans-serif'; ctx.fillText(dateStr, PADDING, 114);
   arr.forEach((g, i) => {
     const y = HEADER_H + i * GAME_H;
-
-    // 구분선
-    ctx.fillStyle = '#E1E8DB';
-    ctx.fillRect(0, y, W, 1);
-
-    // done 배경
-    if (g.done) {
-      ctx.fillStyle = '#F4FFF8';
-      ctx.fillRect(0, y + 1, W, GAME_H - 1);
-    }
-
-    // 게임 번호 원
+    ctx.fillStyle = '#E1E8DB'; ctx.fillRect(0, y, W, 1);
+    if (g.done) { ctx.fillStyle = '#F4FFF8'; ctx.fillRect(0, y + 1, W, GAME_H - 1); }
     const cx = PADDING - 4, cy = y + GAME_H / 2;
     ctx.fillStyle = g.done ? '#C8F43D' : '#F0F2F0';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = g.done ? '#0A4A30' : '#9CA79A';
-    ctx.font = 'bold 20px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(i + 1, cx, cy + 7);
-    ctx.textAlign = 'left';
-
-    // 팀A 이름
+    ctx.font = 'bold 20px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(i + 1, cx, cy + 7); ctx.textAlign = 'left';
     const nameX = PADDING + 28;
-    ctx.fillStyle = '#172018';
-    ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
-    ctx.fillText(getPlayerNameFromKey(g.t1[0]), nameX, y + 38);
-    ctx.fillText(getPlayerNameFromKey(g.t1[1]), nameX, y + 72);
-    ctx.fillStyle = '#9CA79A';
-    ctx.font = '500 18px "Noto Sans KR", sans-serif';
-    ctx.fillText('팀 A', nameX, y + 100);
-
-    // VS + 스코어
+    ctx.fillStyle = '#172018'; ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
+    ctx.fillText(getPlayerNameFromKey(g.t1[0]), nameX, y + 38); ctx.fillText(getPlayerNameFromKey(g.t1[1]), nameX, y + 72);
+    ctx.fillStyle = '#9CA79A'; ctx.font = '500 18px "Noto Sans KR", sans-serif'; ctx.fillText('팀 A', nameX, y + 100);
     const midX = W / 2;
-    ctx.fillStyle = '#9CA79A';
-    ctx.font = 'bold 18px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('VS', midX, y + 38);
-
-    // 스코어 박스
-    const s1 = g.s1 !== '' ? g.s1 : '0';
-    const s2 = g.s2 !== '' ? g.s2 : '0';
+    ctx.fillStyle = '#9CA79A'; ctx.font = 'bold 18px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('VS', midX, y + 38);
+    const s1 = g.s1 !== '' ? g.s1 : '0', s2 = g.s2 !== '' ? g.s2 : '0';
     const scoreY = y + 58;
-
-    ctx.fillStyle = '#F3F6F0';
-    roundRect(ctx, midX - 76, scoreY - 22, 58, 36, 8);
-    ctx.fill();
-    ctx.fillStyle = '#172018';
-    ctx.font = 'bold 26px Inter, sans-serif';
-    ctx.fillText(s1, midX - 47, scoreY + 8);
-
-    ctx.fillStyle = '#9CA79A';
-    ctx.font = 'bold 26px Inter, sans-serif';
-    ctx.fillText(':', midX, scoreY + 8);
-
-    ctx.fillStyle = '#F3F6F0';
-    roundRect(ctx, midX + 18, scoreY - 22, 58, 36, 8);
-    ctx.fill();
-    ctx.fillStyle = '#172018';
-    ctx.font = 'bold 26px Inter, sans-serif';
-    ctx.fillText(s2, midX + 47, scoreY + 8);
-
+    ctx.fillStyle = '#F3F6F0'; roundRect(ctx, midX - 76, scoreY - 22, 58, 36, 8); ctx.fill();
+    ctx.fillStyle = '#172018'; ctx.font = 'bold 26px Inter, sans-serif'; ctx.fillText(s1, midX - 47, scoreY + 8);
+    ctx.fillStyle = '#9CA79A'; ctx.font = 'bold 26px Inter, sans-serif'; ctx.fillText(':', midX, scoreY + 8);
+    ctx.fillStyle = '#F3F6F0'; roundRect(ctx, midX + 18, scoreY - 22, 58, 36, 8); ctx.fill();
+    ctx.fillStyle = '#172018'; ctx.font = 'bold 26px Inter, sans-serif'; ctx.fillText(s2, midX + 47, scoreY + 8);
     ctx.textAlign = 'left';
-
-    // 팀B 이름
-    ctx.fillStyle = '#172018';
-    ctx.font = 'bold 26px "Noto Sans KR", sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(getPlayerNameFromKey(g.t2[0]), W - PADDING, y + 38);
-    ctx.fillText(getPlayerNameFromKey(g.t2[1]), W - PADDING, y + 72);
-    ctx.fillStyle = '#9CA79A';
-    ctx.font = '500 18px "Noto Sans KR", sans-serif';
-    ctx.fillText('팀 B', W - PADDING, y + 100);
+    ctx.fillStyle = '#172018'; ctx.font = 'bold 26px "Noto Sans KR", sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(getPlayerNameFromKey(g.t2[0]), W - PADDING, y + 38); ctx.fillText(getPlayerNameFromKey(g.t2[1]), W - PADDING, y + 72);
+    ctx.fillStyle = '#9CA79A'; ctx.font = '500 18px "Noto Sans KR", sans-serif'; ctx.fillText('팀 B', W - PADDING, y + 100);
     ctx.textAlign = 'left';
   });
-
-  // 마지막 구분선
-  ctx.fillStyle = '#E1E8DB';
-  ctx.fillRect(0, HEADER_H + arr.length * GAME_H, W, 1);
-
-  // 푸터
-  ctx.fillStyle = '#F2F4EF';
-  ctx.fillRect(0, HEADER_H + arr.length * GAME_H + 1, W, FOOTER_H - 1);
-  ctx.fillStyle = '#9CA79A';
-  ctx.font = '500 20px Inter, sans-serif';
-  ctx.textAlign = 'right';
+  ctx.fillStyle = '#E1E8DB'; ctx.fillRect(0, HEADER_H + arr.length * GAME_H, W, 1);
+  ctx.fillStyle = '#F2F4EF'; ctx.fillRect(0, HEADER_H + arr.length * GAME_H + 1, W, FOOTER_H - 1);
+  ctx.fillStyle = '#9CA79A'; ctx.font = '500 20px Inter, sans-serif'; ctx.textAlign = 'right';
   ctx.fillText('Tennis Match Maker', W - PADDING, HEADER_H + arr.length * GAME_H + 38);
   ctx.textAlign = 'left';
-
   return canvas;
 }
 
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
 }
 
-// 클립보드 복사
 function shareText(mode) {
   const text = buildShareText(mode);
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1603,85 +1610,41 @@ function shareText(mode) {
 
 function fallbackCopy(text) {
   const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
-  document.body.appendChild(ta);
-  ta.focus(); ta.select();
-  try {
-    document.execCommand('copy');
-    showToast('📋 복사됐어요! 카톡에 붙여넣기 하세요');
-  } catch(e) {
-    showToast('복사 실패 — 텍스트를 직접 선택해주세요');
-  }
+  ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); showToast('📋 복사됐어요! 카톡에 붙여넣기 하세요'); }
+  catch(e) { showToast('복사 실패 — 텍스트를 직접 선택해주세요'); }
   document.body.removeChild(ta);
-}
-
-async function shareImage(containerId, mode) {
-  showToast('이미지 생성 중...');
-  try {
-    const canvas = await captureGameImage(containerId, mode);
-    const link = document.createElement('a');
-    const today = new Date();
-    link.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    showToast('이미지 저장 완료!');
-  } catch(e) {
-    console.error('shareImage error:', e);
-    showToast('오류: ' + (e && e.message ? e.message : String(e)));
-  }
 }
 
 async function shareImageKakao(containerId, mode) {
   showToast('이미지 생성 중...');
   try {
     const canvas = await captureGameImage(containerId, mode);
-
-    // toBlob으로 변환 (더 안전)
     const blob = await new Promise((resolve, reject) => {
       canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob 실패')), 'image/png');
     });
-
     const file = new File([blob], '대진표.png', { type: 'image/png' });
-
-    // Web Share API로 공유 시도
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file] });
-      return;
+      await navigator.share({ files: [file] }); return;
     }
-
-    // fallback: URL 생성 후 다운로드
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const today = new Date();
     a.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
-    a.href = url;
-    a.click();
+    a.href = url; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast('이미지 저장됐어요! 카톡에서 전송하세요');
   } catch(e) {
     console.error('shareImageKakao error:', e);
-    // 최후 fallback: 이미지 저장으로 대체
-    try { await shareImage(containerId, mode); } catch(_) {}
-  }
-}
-
-// 카카오톡 공유
-function shareKakao(mode) {
-  const text = buildShareText(mode);
-  // 카카오 SDK가 없을 경우 → Web Share API → 복사 fallback
-  if (navigator.share) {
-    navigator.share({ text })
-      .catch(() => shareText(mode));
-  } else {
-    // 카카오톡 앱 URL scheme (모바일에서 실행 시 카톡으로)
-    const encoded = encodeURIComponent(text);
-    const kakaoUrl = `kakaotalk://msg/text/${encoded}`;
-    const a = document.createElement('a');
-    a.href = kakaoUrl;
-    a.click();
-    // 앱이 없으면 복사로 fallback
-    setTimeout(() => shareText(mode), 800);
+    try {
+      const canvas = await captureGameImage(containerId, mode);
+      const link = document.createElement('a');
+      const today = new Date();
+      link.download = `대진표_${today.getMonth()+1}${today.getDate()}.png`;
+      link.href = canvas.toDataURL('image/png'); link.click();
+      showToast('이미지 저장 완료!');
+    } catch(_) {}
   }
 }
 </script>
