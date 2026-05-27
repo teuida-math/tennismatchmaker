@@ -692,62 +692,210 @@ function chooseBestSplit(four, partnerCount, matchCount){
   return best;
 }
 
+// ── 후보 풀에서 최선 출전자 + 조합 선택 ──
+// 핵심: 상위 4명 바로 확정 X
+//      후보군 안의 모든 4명 조합을 비교해서 가장 자연스러운 조합 선택
+function _getCombosN(arr, n){
+  const res=[];
+  function h(start, combo){
+    if(combo.length===n){res.push([...combo]);return;}
+    for(let i=start;i<arr.length;i++){
+      combo.push(arr[i]);
+      h(i+1, combo);
+      combo.pop();
+    }
+  }
+  h(0, []);
+  return res;
+}
+
+function _getCombos4(arr){
+  return _getCombosN(arr, 4);
+}
+
+function _splitScore(s,pc,mc){
+  return(pc[pairKey(s.t1[0],s.t1[1])]||0)*3+
+        (pc[pairKey(s.t2[0],s.t2[1])]||0)*3+
+        (mc[matchKey({t1:s.t1,t2:s.t2})]||0)*10+
+        Math.random()*0.1;
+}
+
+function _bestSplitFrom4(four,pc,mc){
+  const[a,b,c,d]=four;
+  const splits=[{t1:[a,b],t2:[c,d]},{t1:[a,c],t2:[b,d]},{t1:[a,d],t2:[b,c]}];
+  let best=splits[0],bestScore=Infinity;
+  for(const s of splits){const sc=_splitScore(s,pc,mc);if(sc<bestScore){bestScore=sc;best=s;}}
+  return best;
+}
+
+// 인원수별 휴식 체감 반영
+// 6~7명: 2연속 휴식이 매우 어색 → 강한 페널티
+// 8~9명: 2연속 휴식도 어느 정도 허용 → 중간 페널티
+// 10명 이상: 휴식 자체가 자연스러움 → 약한 페널티
+function _restPenalty(playerCount, nextRestStreak){
+  if(nextRestStreak<=1)return 0;
+  if(playerCount<=7)return Math.pow(nextRestStreak-1,2)*1400;
+  if(playerCount<=9)return Math.pow(nextRestStreak-1,2)*350;
+  return Math.pow(nextRestStreak-1,2)*100;
+}
+
+function _playBalancePenalty(block, playerList, playCount){
+  const playing=new Set(block);
+  const temp={};
+  playerList.forEach(p=>{temp[p]=playCount[p]+(playing.has(p)?1:0);});
+  const vals=Object.values(temp);
+  const max=Math.max(...vals), min=Math.min(...vals);
+
+  // 개인 출전수 자체 + 최대/최소 차이 모두 반영
+  let score=0;
+  block.forEach(p=>{score+=playCount[p]*900;});
+  score+=(max-min)*2500;
+  return score;
+}
+
+function _restStreakPenalty(block, playerList, restStreak){
+  const playing=new Set(block);
+  let score=0;
+  playerList.forEach(p=>{
+    if(!playing.has(p))score+=_restPenalty(playerList.length,(restStreak[p]||0)+1);
+  });
+  return score;
+}
+
+function _recentPlayPenalty(block, lastPlayed, roundIdx){
+  // 연속 출전은 금지하지 않음. 단, 아주 약하게만 분산 유도.
+  let score=0;
+  block.forEach(p=>{
+    if(lastPlayed[p]===roundIdx-1)score+=25;
+    else if(lastPlayed[p]===roundIdx-2)score+=5;
+  });
+  return score;
+}
+
+function _blockPairMatchPenalty(block, partnerCount, matchCount){
+  const best=_bestSplitFrom4(block,partnerCount,matchCount);
+  return _splitScore(best,partnerCount,matchCount)*80;
+}
+
+function _scoreBlock(block, playerList, playCount, lastPlayed, restStreak, partnerCount, matchCount, roundIdx){
+  return _playBalancePenalty(block,playerList,playCount)+
+         _restStreakPenalty(block,playerList,restStreak)+
+         _recentPlayPenalty(block,lastPlayed,roundIdx)+
+         _blockPairMatchPenalty(block,partnerCount,matchCount)+
+         Math.random()*0.1;
+}
+
+function _candidatePoolSize(playerCount, need){
+  // 후보군을 너무 크게 잡으면 인원이 많을 때 조합 폭증.
+  // 그래도 6~7명은 전체를 보게 해서 연속 휴식 체감 보정.
+  if(playerCount<=7)return playerCount;
+  if(playerCount<=10)return Math.min(playerCount,Math.max(need+3,7));
+  return Math.min(playerCount,Math.max(need+2,8));
+}
+
+// 정렬: 출전수 우선, 동점이면 오래 쉰 사람 우선, 그래도 동점이면 최근 출전자 후순위
+function _sortPlayers(players,playCount,lastPlayed,restStreak,roundIdx){
+  return shuffle([...players]).sort((a,b)=>{
+    if(playCount[a]!==playCount[b])return playCount[a]-playCount[b];
+    if((restStreak[b]||0)!==(restStreak[a]||0))return (restStreak[b]||0)-(restStreak[a]||0);
+    if(lastPlayed[a]!==lastPlayed[b])return lastPlayed[a]-lastPlayed[b];
+    return 0;
+  });
+}
+
+function _chooseBestBlock(playerList, need, playCount, lastPlayed, restStreak, partnerCount, matchCount, roundIdx){
+  if(playerList.length<need)return null;
+
+  const sorted=_sortPlayers(playerList,playCount,lastPlayed,restStreak,roundIdx);
+  const pool=sorted.slice(0,_candidatePoolSize(playerList.length,need));
+  const combos=_getCombosN(pool,need);
+
+  let best=null,bestScore=Infinity;
+  for(const block of combos){
+    const score=_scoreBlock(block,playerList,playCount,lastPlayed,restStreak,partnerCount,matchCount,roundIdx);
+    if(score<bestScore){bestScore=score;best=block;}
+  }
+  return best;
+}
+
+function _commitRound(roundGames, playerList, playCount, lastPlayed, restStreak, partnerCount, matchCount, roundIdx){
+  const playing=new Set();
+  roundGames.forEach(g=>{
+    [...g.t1,...g.t2].forEach(p=>playing.add(p));
+    partnerCount[pairKey(g.t1[0],g.t1[1])]=(partnerCount[pairKey(g.t1[0],g.t1[1])]||0)+1;
+    partnerCount[pairKey(g.t2[0],g.t2[1])]=(partnerCount[pairKey(g.t2[0],g.t2[1])]||0)+1;
+    matchCount[matchKey(g)]=(matchCount[matchKey(g)]||0)+1;
+  });
+
+  playerList.forEach(p=>{
+    if(playing.has(p)){
+      playCount[p]++;
+      lastPlayed[p]=roundIdx;
+      restStreak[p]=0;
+    }else{
+      restStreak[p]=(restStreak[p]||0)+1;
+    }
+  });
+}
+
 // ── 랜덤 대진표 (코트1) ──
-// matches 파라미터는 하위호환용 (무시), playerList 직접 사용
-// 출전수 적은 순 정렬 → 동점이면 마지막출전 오래된 순 → 4명 확정 → 조합 최적화
+// 출전수 균등 최우선 + 6~7명 연속 휴식 강한 방지 + 페어/매치 중복 최소화
 function smartPick(_matches, playerList, count, _fixedPairsExempt=[]) {
-  const playCount={}, lastPlayed={}, partnerCount={}, matchCount={};
-  playerList.forEach(p=>{playCount[p]=0;lastPlayed[p]=-99;});
+  const playCount={},lastPlayed={},restStreak={},partnerCount={},matchCount={};
+  playerList.forEach(p=>{playCount[p]=0;lastPlayed[p]=-99;restStreak[p]=0;});
   const selected=[];
 
   for(let r=0;r<count;r++){
-    const sorted=[...playerList].sort((a,b)=>
-      playCount[a]-playCount[b]||lastPlayed[a]-lastPlayed[b]||Math.random()-0.5);
-    const block=sorted.slice(0,4);
-    if(block.length<4)break;
+    const block=_chooseBestBlock(playerList,4,playCount,lastPlayed,restStreak,partnerCount,matchCount,r);
+    if(!block||block.length<4)break;
 
-    const best=chooseBestSplit(block,partnerCount,matchCount);
+    const best=_bestSplitFrom4(block,partnerCount,matchCount);
     const game=cloneGame({t1:best.t1,t2:best.t2});
     game.gameIdx=selected.length;
     selected.push(game);
 
-    [...best.t1,...best.t2].forEach(p=>{playCount[p]++;lastPlayed[p]=r;});
-    partnerCount[pairKey(best.t1[0],best.t1[1])]=(partnerCount[pairKey(best.t1[0],best.t1[1])]||0)+1;
-    partnerCount[pairKey(best.t2[0],best.t2[1])]=(partnerCount[pairKey(best.t2[0],best.t2[1])]||0)+1;
-    matchCount[matchKey(game)]=(matchCount[matchKey(game)]||0)+1;
+    _commitRound([game],playerList,playCount,lastPlayed,restStreak,partnerCount,matchCount,r);
   }
   return selected;
 }
 
 // ── 랜덤 대진표 (코트2+, 라운드 단위) ──
+// 실제 사용 가능한 코트 수 자동 보정 + 라운드 단위 출전자 조합 비교
 function smartPickByRounds(_matches, playerList, count, courtCount, _fixedPairsExempt=[]) {
   if(!playerList.length)return[];
-  const playCount={}, lastPlayed={}, partnerCount={}, matchCount={};
-  playerList.forEach(p=>{playCount[p]=0;lastPlayed[p]=-99;});
+
+  const actualCourts=Math.min(courtCount,Math.floor(playerList.length/4));
+  if(actualCourts<1)return[];
+
+  const playCount={},lastPlayed={},restStreak={},partnerCount={},matchCount={};
+  playerList.forEach(p=>{playCount[p]=0;lastPlayed[p]=-99;restStreak[p]=0;});
   const selected=[];
   let roundIdx=0;
 
   while(selected.length<count){
-    const sorted=[...playerList].sort((a,b)=>
-      playCount[a]-playCount[b]||lastPlayed[a]-lastPlayed[b]||Math.random()-0.5);
+    const slots=Math.min(actualCourts,count-selected.length);
+    const need=slots*4;
+    const playingBlock=_chooseBestBlock(playerList,need,playCount,lastPlayed,restStreak,partnerCount,matchCount,roundIdx);
+    if(!playingBlock||playingBlock.length<4)break;
 
-    const slots=Math.min(courtCount,count-selected.length);
-    const playing=sorted.slice(0,slots*4);
+    // 출전자로 뽑힌 사람을 코트별 4명씩 나누되, 셔플해서 고정 패턴 방지
+    const shuffledBlock=shuffle(playingBlock);
     const roundGames=[];
 
     for(let c=0;c<slots;c++){
-      const block=playing.slice(c*4,c*4+4);
+      const block=shuffledBlock.slice(c*4,c*4+4);
       if(block.length<4)break;
-      const best=chooseBestSplit(block,partnerCount,matchCount);
+
+      const best=_bestSplitFrom4(block,partnerCount,matchCount);
       const game=cloneGame({t1:best.t1,t2:best.t2});
-      game.roundIdx=roundIdx;game.courtIdx=c;game.gameIdx=selected.length+roundGames.length;
+      game.roundIdx=roundIdx;
+      game.courtIdx=c;
+      game.gameIdx=selected.length+roundGames.length;
       roundGames.push(game);
-      [...best.t1,...best.t2].forEach(p=>{playCount[p]++;lastPlayed[p]=roundIdx;});
-      partnerCount[pairKey(best.t1[0],best.t1[1])]=(partnerCount[pairKey(best.t1[0],best.t1[1])]||0)+1;
-      partnerCount[pairKey(best.t2[0],best.t2[1])]=(partnerCount[pairKey(best.t2[0],best.t2[1])]||0)+1;
-      matchCount[matchKey(game)]=(matchCount[matchKey(game)]||0)+1;
     }
+
     if(!roundGames.length)break;
+    _commitRound(roundGames,playerList,playCount,lastPlayed,restStreak,partnerCount,matchCount,roundIdx);
     roundGames.forEach(g=>selected.push(g));
     roundIdx++;
   }
