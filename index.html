@@ -714,8 +714,9 @@ function _getCombos4(arr){
 }
 
 function _splitScore(s,pc,mc){
-  return(pc[pairKey(s.t1[0],s.t1[1])]||0)*3+
-        (pc[pairKey(s.t2[0],s.t2[1])]||0)*3+
+  // 파트너 중복 가중치 강화(3 -> 40): 아직 한 번도 같이 안 한 쌍을 강하게 우선
+  return(pc[pairKey(s.t1[0],s.t1[1])]||0)*40+
+        (pc[pairKey(s.t2[0],s.t2[1])]||0)*40+
         (mc[matchKey({t1:s.t1,t2:s.t2})]||0)*10+
         Math.random()*0.1;
 }
@@ -773,8 +774,16 @@ function _recentPlayPenalty(block, lastPlayed, roundIdx){
 }
 
 function _blockPairMatchPenalty(block, partnerCount, matchCount){
+  // ★ 핵심: 이 4명으로 만들 수 있는 6개 쌍 중 '아직 0번 묶인 쌍(fresh)'이
+  //    많을수록 좋은 블록. 같은 4명만 반복 출전해 페어만 도는 현상을 방지.
+  let freshPairs=0, totalDup=0;
+  for(let i=0;i<block.length;i++)for(let j=i+1;j<block.length;j++){
+    const c=partnerCount[pairKey(block[i],block[j])]||0;
+    if(c===0)freshPairs++; else totalDup+=c;
+  }
   const best=_bestSplitFrom4(block,partnerCount,matchCount);
-  return _splitScore(best,partnerCount,matchCount)*80;
+  // 신선한 쌍이 적으면 페널티↑, 중복 누적분 페널티↑, 마지막에 split 미세조정
+  return (6-freshPairs)*1200 + totalDup*400 + _splitScore(best,partnerCount,matchCount)*60;
 }
 
 function _scoreBlock(block, playerList, playCount, lastPlayed, restStreak, partnerCount, matchCount, roundIdx){
